@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "BitStation Catalog Schema v1",
+  "type": "object",
+  "required": ["catalog_version", "tools"],
+  "properties": {
+    "catalog_version": { "type": "string" },
+    "tools": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["tool_id", "name", "latest", "asset_name", "sha256", "platforms"],
+        "properties": {
+          "tool_id": { "type": "string" },
+          "name": { "type": "string" },
+          "latest": { "type": "string" },
+          "asset_name": { "type": "string" },
+          "sha256": { "type": "string" },
+          "platforms": { "type": "array", "items": { "type": "string" } },
+          "category": { "type": "string" }
+        }
+      }
+    }
+  }
+}
