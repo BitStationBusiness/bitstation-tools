@@ -1,0 +1,12 @@
+# Default
+* text=auto
+
+# PowerShell: mejor CRLF para evitar edge cases en algunas setups
+*.ps1 text eol=crlf
+
+# Python y YAML: LF
+*.py text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
+*.json text eol=lf

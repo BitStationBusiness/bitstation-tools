@@ -17,3 +17,19 @@ jobs:
         run: python build/validate_tools.py
       - name: Pack tools (smoke)
         run: python build/pack_tools.py
+
+  test_windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate tools
+        run: python build/validate_tools.py
+      - name: Test add tool (Windows)
+        shell: pwsh
+        run: |
+          Set-Content -Path in.json -Value '{"a":2,"b":3}' -Encoding utf8
+          pwsh -File tools/add/runner/run.ps1 -input in.json -output out.json
+          Get-Content out.json

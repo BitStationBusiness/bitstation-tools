@@ -20,7 +20,7 @@ def main() -> int:
         fail(f"input not found: {in_path}")
 
     try:
-        data = json.loads(in_path.read_text(encoding="utf-8"))
+        data = json.loads(in_path.read_text(encoding="utf-8-sig"))
     except Exception as e:
         fail(f"invalid json input: {e}")
 
