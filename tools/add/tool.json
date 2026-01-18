@@ -1,7 +1,7 @@
 {
   "tool_id": "add",
   "name": "Sumador (Test)",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "category": "core-test",
   "platforms": ["windows"],
   "entrypoint_windows": "runner/run.ps1",
