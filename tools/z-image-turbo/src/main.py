@@ -8,6 +8,7 @@ import json
 import sys
 import os
 import shutil
+import time
 from pathlib import Path
 from datetime import datetime
 import gc
@@ -52,6 +53,38 @@ def _get_default_model_path() -> Path:
     tool_root = Path(__file__).resolve().parents[1]
     return tool_root / "models" / DEFAULT_MODEL_FILE
 
+def _download_with_progress(url: str, dest_path: Path) -> None:
+    """Descarga con progreso básico en MB."""
+    import requests
+
+    chunk_size = 8 * 1024 * 1024
+    with requests.get(url, stream=True, timeout=30) as r:
+        r.raise_for_status()
+        total = int(r.headers.get("content-length", "0") or 0)
+        downloaded = 0
+        last_log = time.time()
+        last_pct = -1
+
+        with open(dest_path, "wb") as f:
+            for chunk in r.iter_content(chunk_size=chunk_size):
+                if not chunk:
+                    continue
+                f.write(chunk)
+                downloaded += len(chunk)
+
+                now = time.time()
+                if total > 0:
+                    pct = int(downloaded * 100 / total)
+                    if pct >= last_pct + 5 or now - last_log >= 5:
+                        print(f"  Descarga: {pct}% ({downloaded // (1024*1024)} MB)")
+                        last_pct = pct
+                        last_log = now
+                else:
+                    if now - last_log >= 5:
+                        print(f"  Descarga: {downloaded // (1024*1024)} MB")
+                        last_log = now
+
+
 def _ensure_model(model_path: Path) -> dict | None:
     """
     Descarga el modelo automáticamente si no existe.
@@ -64,15 +97,9 @@ def _ensure_model(model_path: Path) -> dict | None:
         model_path.parent.mkdir(parents=True, exist_ok=True)
 
         if DEFAULT_MODEL_URL:
-            import requests
             print(f"  Descargando modelo (URL directa)...")
             print(f"  URL: {DEFAULT_MODEL_URL}")
-            with requests.get(DEFAULT_MODEL_URL, stream=True, timeout=30) as r:
-                r.raise_for_status()
-                with open(model_path, "wb") as f:
-                    for chunk in r.iter_content(chunk_size=8 * 1024 * 1024):
-                        if chunk:
-                            f.write(chunk)
+            _download_with_progress(DEFAULT_MODEL_URL, model_path)
             return None
 
         print(f"  Descargando modelo desde Hugging Face...")
@@ -90,6 +117,8 @@ def _ensure_model(model_path: Path) -> dict | None:
         cached_path = Path(cached)
         if cached_path.resolve() != model_path.resolve():
             shutil.copyfile(cached_path, model_path)
+        size_mb = model_path.stat().st_size // (1024 * 1024)
+        print(f"  Descarga completada: {size_mb} MB")
         return None
     except Exception as e:
         return {
