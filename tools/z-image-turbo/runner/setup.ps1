@@ -33,7 +33,8 @@ if ([string]::IsNullOrWhiteSpace($pythonCmd)) { $pythonCmd = "python" }
 try {
     $pyVersion = & $pythonCmd --version 2>&1
     Write-Host "Python encontrado: $pyVersion" -ForegroundColor Green
-} catch {
+}
+catch {
     Write-Error "Python no encontrado. Instala Python 3.10+ y agrega al PATH."
     exit 1
 }
@@ -71,6 +72,13 @@ if ($LASTEXITCODE -ne 0) {
     Write-Warning "No se pudo actualizar pip, continuando..."
 }
 
+# Instalar PyTorch con CUDA explícitamente primero
+Write-Host "Instalando PyTorch con soporte CUDA..." -ForegroundColor Cyan
+& $venvPip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+if ($LASTEXITCODE -ne 0) {
+    Write-Warning "Error instalando PyTorch CUDA. Se intentará continuar con requirements.txt..."
+}
+
 # Instalar dependencias
 if (Test-Path $requirementsPath) {
     Write-Host "Instalando dependencias desde requirements.txt..." -ForegroundColor Cyan
@@ -85,7 +93,8 @@ if (Test-Path $requirementsPath) {
     & $venvPip freeze | Out-File -Encoding utf8 $lockPath
     
     Write-Host "Dependencias instaladas correctamente" -ForegroundColor Green
-} else {
+}
+else {
     Write-Warning "requirements.txt no encontrado en: $requirementsPath"
 }
 
@@ -104,12 +113,14 @@ if (!(Test-Path $modelPath)) {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
         Invoke-WebRequest -Uri $modelUrl -OutFile $modelPath
         Write-Host "Modelo descargado correctamente" -ForegroundColor Green
-    } catch {
+    }
+    catch {
         Write-Error "Error al descargar el modelo: $_"
         Write-Host "Puedes descargar manualmente y definir ZIMAGE_MODEL_PATH" -ForegroundColor Yellow
         exit 5
     }
-} else {
+}
+else {
     Write-Host "Modelo ya existe: $modelPath" -ForegroundColor Green
 }
 
