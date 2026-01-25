@@ -1,0 +1,60 @@
+{
+    "tool_id": "z-image-turbo",
+    "name": "Z-Image Turbo (Text to Image)",
+    "version": "0.1.0",
+    "category": "image-generation",
+    "platforms": [
+        "windows"
+    ],
+    "entrypoint_windows": "runner/run.ps1",
+    "needs_models": true,
+    "io_schema": {
+        "input": {
+            "type": "object",
+            "required": [
+                "prompt"
+            ],
+            "properties": {
+                "prompt": {
+                    "type": "string",
+                    "description": "Descripción de la imagen a generar"
+                },
+                "size": {
+                    "type": "string",
+                    "enum": [
+                        "S",
+                        "M",
+                        "B"
+                    ],
+                    "default": "M",
+                    "description": "Tamaño de imagen: S=512px, M=768px, B=1024px"
+                }
+            }
+        },
+        "output": {
+            "type": "object",
+            "required": [
+                "ok",
+                "image_path"
+            ],
+            "properties": {
+                "ok": {
+                    "type": "boolean"
+                },
+                "image_path": {
+                    "type": "string",
+                    "description": "Ruta absoluta a la imagen generada"
+                },
+                "width": {
+                    "type": "integer"
+                },
+                "height": {
+                    "type": "integer"
+                },
+                "error": {
+                    "type": "string"
+                }
+            }
+        }
+    }
+}

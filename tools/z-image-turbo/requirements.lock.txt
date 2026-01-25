@@ -1,0 +1,2 @@
+# Lock file generado automáticamente por setup.ps1
+# No editar manualmente
