@@ -7,12 +7,15 @@ import argparse
 import json
 import sys
 import os
+import shutil
 from pathlib import Path
 from datetime import datetime
 import gc
 
 # Modelo por defecto (GGUF)
 DEFAULT_MODEL_FILE = os.environ.get("ZIMAGE_MODEL_FILE", "z_image_turbo-Q4_K_M.gguf")
+DEFAULT_MODEL_REPO = os.environ.get("ZIMAGE_MODEL_REPO", "jayn7/Z-Image-Turbo-GGUF")
+DEFAULT_MODEL_URL = os.environ.get("ZIMAGE_MODEL_URL", "")
 
 # Mapeo de tamaños
 SIZE_MAP = {
@@ -49,6 +52,51 @@ def _get_default_model_path() -> Path:
     tool_root = Path(__file__).resolve().parents[1]
     return tool_root / "models" / DEFAULT_MODEL_FILE
 
+def _ensure_model(model_path: Path) -> dict | None:
+    """
+    Descarga el modelo automáticamente si no existe.
+    Usa Hugging Face Hub por defecto o ZIMAGE_MODEL_URL si se define.
+    """
+    if model_path.exists():
+        return None
+
+    try:
+        model_path.parent.mkdir(parents=True, exist_ok=True)
+
+        if DEFAULT_MODEL_URL:
+            import requests
+            print(f"  Descargando modelo (URL directa)...")
+            print(f"  URL: {DEFAULT_MODEL_URL}")
+            with requests.get(DEFAULT_MODEL_URL, stream=True, timeout=30) as r:
+                r.raise_for_status()
+                with open(model_path, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=8 * 1024 * 1024):
+                        if chunk:
+                            f.write(chunk)
+            return None
+
+        print(f"  Descargando modelo desde Hugging Face...")
+        print(f"  Repo: {DEFAULT_MODEL_REPO}")
+        print(f"  Archivo: {DEFAULT_MODEL_FILE}")
+
+        from huggingface_hub import hf_hub_download
+
+        cached = hf_hub_download(
+            repo_id=DEFAULT_MODEL_REPO,
+            filename=DEFAULT_MODEL_FILE,
+            local_dir=model_path.parent,
+            local_dir_use_symlinks=False,
+        )
+        cached_path = Path(cached)
+        if cached_path.resolve() != model_path.resolve():
+            shutil.copyfile(cached_path, model_path)
+        return None
+    except Exception as e:
+        return {
+            "ok": False,
+            "error": f"No se pudo descargar el modelo GGUF: {e}",
+        }
+
 def generate_image(prompt: str, width: int, height: int, output_path: Path) -> dict:
     """
     Genera una imagen usando Diffusers con ZImagePipeline.
@@ -61,6 +109,10 @@ def generate_image(prompt: str, width: int, height: int, output_path: Path) -> d
     
     try:
         model_path = _get_default_model_path()
+        if not model_path.exists():
+            download_error = _ensure_model(model_path)
+            if download_error is not None:
+                return download_error
         if not model_path.exists():
             return {
                 "ok": False,
