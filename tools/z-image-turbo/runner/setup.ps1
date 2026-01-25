@@ -72,11 +72,35 @@ if ($LASTEXITCODE -ne 0) {
     Write-Warning "No se pudo actualizar pip, continuando..."
 }
 
-# Instalar PyTorch con CUDA explícitamente primero
-Write-Host "Instalando PyTorch con soporte CUDA..." -ForegroundColor Cyan
-& $venvPip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+# Detección de GPU (NVIDIA)
+Write-Host "Verificando hardware de GPU..." -ForegroundColor Cyan
+$hasNvidia = $false
+try {
+    $gpuInfo = Get-CimInstance Win32_VideoController
+    if ($gpuInfo | Where-Object { $_.Name -match "NVIDIA" }) {
+        $hasNvidia = $true
+        Write-Host "GPU NVIDIA detectada: Sí" -ForegroundColor Green
+    }
+    else {
+        Write-Host "GPU NVIDIA detectada: No" -ForegroundColor Yellow
+    }
+}
+catch {
+    Write-Warning "No se pudo identificar la GPU. Se asumirá CPU."
+}
+
+# Instalar PyTorch
+if ($hasNvidia) {
+    Write-Host "Instalando PyTorch con soporte CUDA (para GPU NVIDIA)..." -ForegroundColor Cyan
+    & $venvPip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+}
+else {
+    Write-Host "Instalando PyTorch estándar (CPU)..." -ForegroundColor Cyan
+    & $venvPip install torch torchvision torchaudio
+}
+
 if ($LASTEXITCODE -ne 0) {
-    Write-Warning "Error instalando PyTorch CUDA. Se intentará continuar con requirements.txt..."
+    Write-Warning "Error instalando PyTorch. Se intentará continuar con requirements.txt..."
 }
 
 # Instalar dependencias
