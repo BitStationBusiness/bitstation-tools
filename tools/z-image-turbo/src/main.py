@@ -1,6 +1,6 @@
 """
 Z-Image Turbo - Generador de imágenes desde texto
-Usa stable-diffusion-cpp-python para generación local eficiente.
+Usa Diffusers con ZImagePipeline para generación con modelos GGUF.
 """
 
 import argparse
@@ -9,6 +9,10 @@ import sys
 import os
 from pathlib import Path
 from datetime import datetime
+import gc
+
+# Modelo por defecto (GGUF)
+DEFAULT_MODEL_FILE = os.environ.get("ZIMAGE_MODEL_FILE", "z_image_turbo-Q4_K_M.gguf")
 
 # Mapeo de tamaños
 SIZE_MAP = {
@@ -37,31 +41,84 @@ def get_downloads_folder() -> Path:
     # Fallback
     return Path.home() / "Downloads"
 
+def _get_default_model_path() -> Path:
+    """Retorna el path del modelo por defecto."""
+    env_path = os.environ.get("ZIMAGE_MODEL_PATH")
+    if env_path:
+        return Path(env_path)
+    tool_root = Path(__file__).resolve().parents[1]
+    return tool_root / "models" / DEFAULT_MODEL_FILE
+
 def generate_image(prompt: str, width: int, height: int, output_path: Path) -> dict:
     """
-    Genera una imagen usando stable-diffusion-cpp-python.
+    Genera una imagen usando Diffusers con ZImagePipeline.
     """
     try:
-        from stable_diffusion_cpp import StableDiffusion
+        import torch
+        from diffusers import ZImagePipeline, ZImageTransformer2DModel, GGUFQuantizationConfig
     except ImportError as e:
-        return {"ok": False, "error": f"stable-diffusion-cpp-python no instalado: {e}"}
+        return {"ok": False, "error": f"diffusers o torch no instalado: {e}"}
     
     try:
-        # Inicializar el modelo
-        # El modelo se descargará automáticamente si no existe
-        sd = StableDiffusion(
-            model_path="",  # Usará el modelo por defecto
-            wtype="default",  # Tipo de peso automático
+        model_path = _get_default_model_path()
+        if not model_path.exists():
+            return {
+                "ok": False,
+                "error": (
+                    "Modelo GGUF no encontrado. Ejecuta setup.ps1 para descargarlo "
+                    f"o define ZIMAGE_MODEL_PATH. Path esperado: {model_path}"
+                ),
+            }
+
+        print(f"  Cargando modelo: {model_path}")
+        
+        # Determinar el dispositivo y dtype
+        if torch.cuda.is_available():
+            device = "cuda"
+            dtype = torch.bfloat16
+            print(f"  Usando GPU: {torch.cuda.get_device_name(0)}")
+        else:
+            device = "cpu"
+            dtype = torch.float32
+            print("  ADVERTENCIA: Usando CPU. La generación será muy lenta.")
+
+        # Cargar el transformer desde el archivo GGUF
+        print("  Cargando transformer...")
+        transformer = ZImageTransformer2DModel.from_single_file(
+            str(model_path),
+            quantization_config=GGUFQuantizationConfig(compute_dtype=dtype),
+            torch_dtype=dtype,
         )
         
-        # Generar imagen
-        images = sd.txt_to_img(
-            prompt=prompt,
-            width=width,
-            height=height,
-            sample_steps=4,  # Turbo = menos pasos
-            cfg_scale=1.0,   # Para modelos turbo/schnell
+        # Crear el pipeline sin moverlo a CUDA todavía
+        print("  Inicializando pipeline...")
+        pipeline = ZImagePipeline.from_pretrained(
+            "Tongyi-MAI/Z-Image-Turbo",
+            transformer=transformer,
+            torch_dtype=dtype,
         )
+        
+        # Estrategia: CPU Offload por defecto para evitar swapping del driver en Windows
+        if device == "cuda":
+            print("  Habilitando CPU Offload (Balance VRAM/Velocidad)...")
+            pipeline.enable_model_cpu_offload()
+            # Opcional: enable_sequential_cpu_offload() si fuera aun muy grande, pero Q4 deberia ir bien con model_cpu_offload
+        else:
+            pipeline.to(device)
+
+        # Generar imagen
+        print("  Generando imagen...")
+        seed = int(datetime.now().timestamp()) % (2**32)
+        generator = torch.Generator(device).manual_seed(seed)
+        
+        images = pipeline(
+            prompt=prompt,
+            num_inference_steps=9,  # 8 forwards reales para modelo Turbo
+            guidance_scale=0.0,     # Turbo models don't need guidance
+            height=height,
+            width=width,
+            generator=generator,
+        ).images
         
         if not images:
             return {"ok": False, "error": "No se generó ninguna imagen"}
@@ -78,6 +135,8 @@ def generate_image(prompt: str, width: int, height: int, output_path: Path) -> d
         }
         
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return {"ok": False, "error": f"Error al generar imagen: {str(e)}"}
 
 def main() -> int:

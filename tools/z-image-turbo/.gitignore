@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+
+# Virtual Env
+.venv/
+.venv2/
+venv/
+env/
+
+# Models (Download via setup.ps1)
+models/
+
+# Tool specific
+test_input.json
+test_output.json
+*.log

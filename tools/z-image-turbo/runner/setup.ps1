@@ -16,6 +16,12 @@ $toolRoot = Split-Path -Parent $PSScriptRoot
 $venvPath = Join-Path $toolRoot ".venv"
 $requirementsPath = Join-Path $toolRoot "requirements.txt"
 $lockPath = Join-Path $toolRoot "requirements.lock.txt"
+$modelsDir = Join-Path $toolRoot "models"
+
+$defaultModelFile = "z_image_turbo-Q4_K_M.gguf"
+$modelFile = if ([string]::IsNullOrWhiteSpace($env:ZIMAGE_MODEL_FILE)) { $defaultModelFile } else { $env:ZIMAGE_MODEL_FILE }
+$modelPath = if ([string]::IsNullOrWhiteSpace($env:ZIMAGE_MODEL_PATH)) { Join-Path $modelsDir $modelFile } else { $env:ZIMAGE_MODEL_PATH }
+$modelUrl = if ([string]::IsNullOrWhiteSpace($env:ZIMAGE_MODEL_URL)) { "https://huggingface.co/jayn7/Z-Image-Turbo-GGUF/resolve/main/$modelFile?download=true" } else { $env:ZIMAGE_MODEL_URL }
 
 Write-Host "=== Z-Image Turbo Setup ===" -ForegroundColor Cyan
 Write-Host "Tool root: $toolRoot"
@@ -83,9 +89,34 @@ if (Test-Path $requirementsPath) {
     Write-Warning "requirements.txt no encontrado en: $requirementsPath"
 }
 
+# Descargar modelo si no existe
+if (!(Test-Path $modelPath)) {
+    Write-Host ""
+    Write-Host "Descargando modelo GGUF..." -ForegroundColor Cyan
+    Write-Host "URL: $modelUrl"
+    Write-Host "Destino: $modelPath"
+
+    if (!(Test-Path $modelsDir)) {
+        New-Item -ItemType Directory -Force -Path $modelsDir | Out-Null
+    }
+
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        Invoke-WebRequest -Uri $modelUrl -OutFile $modelPath
+        Write-Host "Modelo descargado correctamente" -ForegroundColor Green
+    } catch {
+        Write-Error "Error al descargar el modelo: $_"
+        Write-Host "Puedes descargar manualmente y definir ZIMAGE_MODEL_PATH" -ForegroundColor Yellow
+        exit 5
+    }
+} else {
+    Write-Host "Modelo ya existe: $modelPath" -ForegroundColor Green
+}
+
 Write-Host ""
 Write-Host "=== Setup completado ===" -ForegroundColor Green
 Write-Host "Entorno virtual: $venvPath"
+Write-Host "Modelo: $modelPath"
 Write-Host ""
 Write-Host "Para ejecutar manualmente:"
 Write-Host "  $venvPython src\main.py --input <input.json> --output <output.json>"

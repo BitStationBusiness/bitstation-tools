@@ -1,2 +1,11 @@
-stable-diffusion-cpp-python==0.4.2
+# Z-Image Turbo dependencies
+# Diffusers from git for latest GGUF/ZImage support
+--extra-index-url https://download.pytorch.org/whl/cu121
+torch>=2.1.0
+diffusers @ git+https://github.com/huggingface/diffusers
+transformers>=4.40.0
+accelerate>=0.25.0
 pillow>=10.0.0
+sentencepiece>=0.2.0
+protobuf>=4.25.0
+gguf>=0.6.0
