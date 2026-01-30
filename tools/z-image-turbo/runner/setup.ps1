@@ -21,7 +21,22 @@ $modelsDir = Join-Path $toolRoot "models"
 $defaultModelFile = "z_image_turbo-Q4_K_M.gguf"
 $modelFile = if ([string]::IsNullOrWhiteSpace($env:ZIMAGE_MODEL_FILE)) { $defaultModelFile } else { $env:ZIMAGE_MODEL_FILE }
 $modelPath = if ([string]::IsNullOrWhiteSpace($env:ZIMAGE_MODEL_PATH)) { Join-Path $modelsDir $modelFile } else { $env:ZIMAGE_MODEL_PATH }
-$modelUrl = if ([string]::IsNullOrWhiteSpace($env:ZIMAGE_MODEL_URL)) { "https://huggingface.co/jayn7/Z-Image-Turbo-GGUF/resolve/main/$modelFile" } else { $env:ZIMAGE_MODEL_URL }
+$modelBaseUrl = "https://huggingface.co/jayn7/Z-Image-Turbo-GGUF/resolve/main"
+$modelUrl = if ([string]::IsNullOrWhiteSpace($env:ZIMAGE_MODEL_URL)) { "$modelBaseUrl/$modelFile" } else { $env:ZIMAGE_MODEL_URL }
+
+# Sanear URL si viene mal formada desde el entorno
+if ($modelUrl -match "\?download=true$") {
+    $modelUrl = $modelUrl -replace "\?download=true$", ""
+}
+if ($modelUrl -match "=true$") {
+    $modelUrl = $modelUrl -replace "=true$", ""
+}
+if ($modelUrl.EndsWith("/")) {
+    $modelUrl = "$modelUrl$modelFile"
+}
+if ($modelUrl -notmatch "\.gguf($|\?)") {
+    $modelUrl = "$modelBaseUrl/$modelFile"
+}
 
 Write-Host "=== Z-Image Turbo Setup ===" -ForegroundColor Cyan
 Write-Host "Tool root: $toolRoot"
