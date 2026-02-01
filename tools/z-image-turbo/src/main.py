@@ -194,20 +194,22 @@ def load_model(flash_mode: bool = False):
             torch.set_float32_matmul_precision('medium')
         
         if flash_mode:
-            # MODO FLASH: Usar enable_model_cpu_offload como en v0.2.8 (22s comprobados)
-            # NOTA: attention_slicing, vae_tiling, y to(device) rompen la cuantización GGUF
+            # MODO FLASH: Usar enable_model_cpu_offload para GGUF
+            # NOTA: sequential_cpu_offload es MUY LENTO con modelos GGUF
+            # NOTA: to(device) causa OOM/thrashing en 8GB VRAM
+            # model_cpu_offload proporciona rendimiento consistente de ~19-20s/imagen
             print("  [FLASH] Habilitando CPU Offload optimizado para GGUF...", file=sys.stderr)
             pipeline.enable_model_cpu_offload()
             
             load_time = time.time() - load_start
             print(f"  [FLASH] Pipeline listo en {load_time:.2f}s", file=sys.stderr)
             
-            # WARMUP: Pre-compilar kernels CUDA
-            print("  [FLASH] Warmup: pre-compilando kernels...", file=sys.stderr)
+            # WARMUP para pre-compilar kernels CUDA
+            print("  [FLASH] Warmup: inicializando kernels...", file=sys.stderr)
             warmup_start = time.time()
             try:
                 with torch.inference_mode():
-                    warmup_generator = torch.Generator(device).manual_seed(42)
+                    warmup_generator = torch.Generator("cuda").manual_seed(42)
                     _ = pipeline(
                         prompt="warmup",
                         num_inference_steps=1,
@@ -219,8 +221,12 @@ def load_model(flash_mode: bool = False):
                     )
                 if torch.cuda.is_available():
                     torch.cuda.synchronize()
+                    # Reportar uso de memoria después del warmup
+                    vram_used = torch.cuda.memory_allocated(0) / (1024**3)
+                    vram_total = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+                    print(f"  [FLASH] GPU: {vram_used:.1f}/{vram_total:.1f} GB usados", file=sys.stderr)
                 warmup_time = time.time() - warmup_start
-                print(f"  [FLASH] Warmup completado en {warmup_time:.2f}s", file=sys.stderr)
+                print(f"  [FLASH] Warmup completado en {warmup_time:.2f}s - Listo para generar", file=sys.stderr)
             except Exception as e:
                 print(f"  [FLASH] Warmup fallido (no crítico): {e}", file=sys.stderr)
         
