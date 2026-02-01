@@ -126,10 +126,13 @@ def _ensure_model(model_path: Path) -> dict | None:
             "error": f"No se pudo descargar el modelo GGUF: {e}",
         }
 
-def load_model():
+def load_model(flash_mode: bool = False):
     """
     Carga el modelo Z-Image Turbo y retorna el pipeline configurado.
-    Este modelo puede ser reutilizado en modo persistente.
+    
+    Args:
+        flash_mode: Si True, optimiza para máxima velocidad (modelo completo en GPU).
+                   Si False, usa CPU offload para balance VRAM/velocidad.
     """
     try:
         import torch
@@ -148,39 +151,92 @@ def load_model():
             f"o define ZIMAGE_MODEL_PATH. Path esperado: {model_path}"
         )
 
-    print(f"  Cargando modelo: {model_path}")
+    load_start = time.time()
+    print(f"  Cargando modelo: {model_path}", file=sys.stderr)
     
     # Determinar el dispositivo y dtype
     if torch.cuda.is_available():
         device = "cuda"
         dtype = torch.bfloat16
-        print(f"  Usando GPU: {torch.cuda.get_device_name(0)}")
+        print(f"  Usando GPU: {torch.cuda.get_device_name(0)}", file=sys.stderr)
+        
+        # Mostrar VRAM disponible
+        total_vram = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+        free_vram = (torch.cuda.get_device_properties(0).total_memory - torch.cuda.memory_allocated(0)) / (1024**3)
+        print(f"  VRAM total: {total_vram:.1f} GB, disponible: {free_vram:.1f} GB", file=sys.stderr)
     else:
         device = "cpu"
         dtype = torch.float32
-        print("  ADVERTENCIA: Usando CPU. La generación será muy lenta.")
+        print("  ADVERTENCIA: Usando CPU. La generación será muy lenta.", file=sys.stderr)
 
     # Cargar el transformer desde el archivo GGUF
-    print("  Cargando transformer...")
+    print("  Cargando transformer...", file=sys.stderr)
     transformer = ZImageTransformer2DModel.from_single_file(
         str(model_path),
         quantization_config=GGUFQuantizationConfig(compute_dtype=dtype),
         torch_dtype=dtype,
     )
     
-    # Crear el pipeline sin moverlo a CUDA todavía
-    print("  Inicializando pipeline...")
+    # Crear el pipeline
+    print("  Inicializando pipeline...", file=sys.stderr)
     pipeline = ZImagePipeline.from_pretrained(
         "Tongyi-MAI/Z-Image-Turbo",
         transformer=transformer,
         torch_dtype=dtype,
     )
     
-    # Estrategia: CPU Offload por defecto para evitar swapping del driver en Windows
     if device == "cuda":
-        print("  Habilitando CPU Offload (Balance VRAM/Velocidad)...")
-        pipeline.enable_model_cpu_offload()
-        # Opcional: enable_sequential_cpu_offload() si fuera aun muy grande, pero Q4 deberia ir bien con model_cpu_offload
+        if flash_mode:
+            # MODO FLASH: Modelo completo en GPU para máxima velocidad
+            print("  [FLASH] Cargando modelo completo en GPU...", file=sys.stderr)
+            pipeline = pipeline.to(device)
+            
+            # Habilitar VAE tiling para eficiencia de memoria en imágenes grandes
+            print("  [FLASH] Habilitando VAE tiling...", file=sys.stderr)
+            pipeline.vae.enable_tiling()
+            
+            # Intentar compilar el modelo para kernels optimizados (PyTorch 2.0+)
+            try:
+                if hasattr(torch, 'compile') and torch.cuda.get_device_capability()[0] >= 7:
+                    print("  [FLASH] Compilando modelo con torch.compile()...", file=sys.stderr)
+                    # Usar mode="reduce-overhead" para mejor rendimiento en inferencia
+                    pipeline.transformer = torch.compile(
+                        pipeline.transformer, 
+                        mode="reduce-overhead",
+                        fullgraph=False  # Más compatible
+                    )
+            except Exception as e:
+                print(f"  [FLASH] torch.compile no disponible: {e}", file=sys.stderr)
+            
+            load_time = time.time() - load_start
+            print(f"  [FLASH] Modelo cargado en GPU en {load_time:.2f}s", file=sys.stderr)
+            
+            # WARMUP: Hacer una inferencia pequeña para pre-compilar kernels CUDA
+            print("  [FLASH] Warmup: pre-compilando kernels CUDA...", file=sys.stderr)
+            warmup_start = time.time()
+            try:
+                with torch.inference_mode():
+                    # Generar imagen pequeña de 64x64 para warmup rápido
+                    warmup_generator = torch.Generator(device).manual_seed(42)
+                    _ = pipeline(
+                        prompt="warmup",
+                        num_inference_steps=1,  # Solo 1 paso para warmup
+                        guidance_scale=0.0,
+                        height=64,
+                        width=64,
+                        generator=warmup_generator,
+                        output_type="latent"  # No decodificar, solo warmup del transformer
+                    )
+                # Sincronizar GPU
+                torch.cuda.synchronize()
+                warmup_time = time.time() - warmup_start
+                print(f"  [FLASH] Warmup completado en {warmup_time:.2f}s", file=sys.stderr)
+            except Exception as e:
+                print(f"  [FLASH] Warmup fallido (no crítico): {e}", file=sys.stderr)
+        else:
+            # MODO NORMAL: CPU Offload para balance VRAM/Velocidad
+            print("  Habilitando CPU Offload (Balance VRAM/Velocidad)...", file=sys.stderr)
+            pipeline.enable_model_cpu_offload()
     else:
         pipeline.to(device)
     
@@ -190,23 +246,25 @@ def load_model():
 def generate_image_with_pipeline(pipeline, device: str, prompt: str, width: int, height: int, output_path: Path) -> dict:
     """
     Genera una imagen usando un pipeline ya cargado.
+    Usa torch.inference_mode() para máxima velocidad.
     """
     try:
         import torch
         
-        # Generar imagen
-        print("  Generando imagen...")
+        # Generar imagen con inference_mode para mejor rendimiento
+        print("  Generando imagen...", file=sys.stderr)
         seed = int(datetime.now().timestamp()) % (2**32)
         generator = torch.Generator(device).manual_seed(seed)
         
-        images = pipeline(
-            prompt=prompt,
-            num_inference_steps=9,  # 8 forwards reales para modelo Turbo
-            guidance_scale=0.0,     # Turbo models don't need guidance
-            height=height,
-            width=width,
-            generator=generator,
-        ).images
+        with torch.inference_mode():
+            images = pipeline(
+                prompt=prompt,
+                num_inference_steps=9,  # 8 forwards reales para modelo Turbo
+                guidance_scale=0.0,     # Turbo models don't need guidance
+                height=height,
+                width=width,
+                generator=generator,
+            ).images
         
         if not images:
             return {"ok": False, "error": "No se generó ninguna imagen"}
@@ -248,19 +306,29 @@ def run_persistent_mode() -> int:
     """
     Modo Flash (Persistente): Mantiene el modelo en GPU y procesa múltiples jobs.
     Usa JSON-RPC sobre STDIN/STDOUT.
+    
+    Optimizaciones Flash:
+    - Modelo cargado completamente en GPU (sin CPU offload)
+    - Warmup inicial para pre-compilar kernels CUDA
+    - torch.compile() para kernels optimizados
+    - VAE tiling para eficiencia de memoria
     """
     import torch
     
     try:
-        # Cargar modelo una sola vez
+        # Cargar modelo con optimizaciones Flash
         print("Iniciando modo Flash (persistente)...", file=sys.stderr)
-        pipeline, device = load_model()
+        flash_start = time.time()
+        pipeline, device = load_model(flash_mode=True)
+        total_init_time = time.time() - flash_start
         
         # Log GPU mode
         if device == "cuda":
-            print("GPU mode enabled, model pinned in VRAM", file=sys.stderr)
+            vram_used = torch.cuda.memory_allocated(0) / (1024**3)
+            print(f"GPU mode enabled, model pinned in VRAM ({vram_used:.2f} GB used)", file=sys.stderr)
+            print(f"Total initialization time: {total_init_time:.2f}s", file=sys.stderr)
         else:
-            print("GPU mode enabled (CPU), model loaded in RAM", file=sys.stderr)
+            print("Flash mode enabled (CPU), model loaded in RAM", file=sys.stderr)
         
         # Señal de que estamos listos
         ready_signal = {"status": "ready"}
@@ -337,16 +405,22 @@ def run_persistent_mode() -> int:
                 print(f"Procesando job {job_id}: {prompt[:50]}...", file=sys.stderr)
                 
                 # Generar imagen usando pipeline cargado
+                gen_start = time.time()
                 result = generate_image_with_pipeline(pipeline, device, prompt, width, height, image_output_path)
+                gen_time = time.time() - gen_start
+                
+                # Añadir tiempo de generación al resultado
+                if result.get("ok"):
+                    result["generation_time_ms"] = int(gen_time * 1000)
+                    print(f"Imagen generada en {gen_time:.2f}s", file=sys.stderr)
                 
                 # Enviar resultado
                 print(json.dumps(result, ensure_ascii=False))
                 sys.stdout.flush()
                 
-                # Limpiar memoria temporal (pero mantener modelo)
+                # En modo Flash, NO limpiar cache para mantener kernels compilados
+                # Solo hacer gc.collect() ligero
                 gc.collect()
-                if device == "cuda":
-                    torch.cuda.empty_cache()
                 
             except KeyboardInterrupt:
                 print("GPU mode disabled, unloading model", file=sys.stderr)
