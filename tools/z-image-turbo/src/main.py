@@ -169,13 +169,57 @@ def load_model(flash_mode: bool = False):
         dtype = torch.float32
         print("  ADVERTENCIA: Usando CPU. La generación será muy lenta.", file=sys.stderr)
 
-    # Cargar el transformer desde el archivo GGUF
+    # Cargar el transformer desde el archivo GGUF con reintento por corrupción
     print("  Cargando transformer...", file=sys.stderr)
-    transformer = ZImageTransformer2DModel.from_single_file(
-        str(model_path),
-        quantization_config=GGUFQuantizationConfig(compute_dtype=dtype),
-        torch_dtype=dtype,
-    )
+    
+    max_retries = 1
+    for attempt in range(max_retries + 1):
+        try:
+            # Asegurar que el archivo existe antes de intentar cargar
+            if not model_path.exists():
+                print(f"  [INFO] El modelo no existe, descargando...", file=sys.stderr)
+                # Intentar llamar a _ensure_model si el path está en models/ por defecto
+                if "models" in str(model_path):
+                     _ensure_model(model_path)
+                elif not model_path.exists():
+                     raise FileNotFoundError(f"Modelo no encontrado en: {model_path}")
+            
+            transformer = ZImageTransformer2DModel.from_single_file(
+                str(model_path),
+                quantization_config=GGUFQuantizationConfig(compute_dtype=dtype),
+                torch_dtype=dtype,
+            )
+            # Si carga exitosamente, salir del bucle
+            break
+            
+        except (OSError, ValueError, UnicodeDecodeError, RuntimeError) as e:
+            # Detectar errores típicos de archivo corrupto
+            is_corruption = (
+                "Unable to load weights" in str(e) or 
+                "cannot reshape array" in str(e) or 
+                "charmap" in str(e) or
+                "invalid load key" in str(e)
+            )
+            
+            if is_corruption and attempt < max_retries:
+                print(f"  [ERROR] Modelo corrupto detectado ({str(e)[:100]}...). Eliminando y re-descargando...", file=sys.stderr)
+                try:
+                    if model_path.exists():
+                        os.remove(model_path)
+                        print(f"  [INFO] Archivo corrupto eliminado: {model_path}", file=sys.stderr)
+                    
+                    # Forzar descarga en el siguiente ciclo
+                    if "models" in str(model_path):
+                         _ensure_model(model_path)
+                    
+                except Exception as del_err:
+                    print(f"  [ERROR] No se pudo eliminar el archivo corrupto: {del_err}", file=sys.stderr)
+                    # Si no podemos borrar, no tiene sentido reintentar
+                    raise e
+            else:
+                # Si no es corrupción o ya reintentamos, lanzar el error
+                print(f"  [FATAL] Fallo al cargar el modelo después de {attempt} reintentos.", file=sys.stderr)
+                raise e
     
     # Crear el pipeline
     print("  Inicializando pipeline...", file=sys.stderr)
