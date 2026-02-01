@@ -186,58 +186,33 @@ def load_model(flash_mode: bool = False):
     )
     
     if device == "cuda":
-        # Estrategia adaptativa para VRAM
-        vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+        # Optimizaciones globales de PyTorch para velocidad
+        torch.backends.cudnn.benchmark = True  # Autotuner para convoluciones
+        torch.backends.cuda.matmul.allow_tf32 = True  # TensorFloat32 en Ampere+
+        torch.backends.cudnn.allow_tf32 = True
+        if hasattr(torch, 'set_float32_matmul_precision'):
+            torch.set_float32_matmul_precision('medium')
         
         if flash_mode:
-            # MODO FLASH: Optimizado para velocidad y persistencia
-            
-            # Decidir si cabe todo en VRAM (Umbral conservador: 12GB para modelo + VAE + act + text enc)
-            fits_in_vram = vram_gb >= 12.0
-            
-            if fits_in_vram:
-                print(f"  [FLASH] VRAM suficiente ({vram_gb:.1f} GB). Cargando modelo completo en GPU...", file=sys.stderr)
-                pipeline = pipeline.to(device)
-            else:
-                print(f"  [FLASH] VRAM limitada ({vram_gb:.1f} GB < 12 GB). Usando CPU Offload optimizado...", file=sys.stderr)
-                # enable_model_cpu_offload mantiene el modelo en RAM y mueve a GPU bajo demanda
-                pipeline.enable_model_cpu_offload()
-
-            # Habilitar VAE tiling (siempre bueno para resoluciones altas sin OOM)
-            print("  [FLASH] Habilitando VAE tiling...", file=sys.stderr)
-            pipeline.vae.enable_tiling()
-            
-            # Compilación (intentar siempre en Flash mode)
-            try:
-                if hasattr(torch, 'compile') and torch.cuda.get_device_capability()[0] >= 7:
-                    import logging
-                    logging.getLogger("torch._dynamo").setLevel(logging.ERROR)
-                    torch._dynamo.config.suppress_errors = True
-                    
-                    print("  [FLASH] Compilando modelo con torch.compile()...", file=sys.stderr)
-                    pipeline.transformer = torch.compile(
-                        pipeline.transformer, 
-                        mode="reduce-overhead",
-                        fullgraph=False
-                    )
-            except Exception as e:
-                print(f"  [FLASH] torch.compile no disponible (normal en Windows): {e}", file=sys.stderr)
+            # MODO FLASH: Usar enable_model_cpu_offload como en v0.2.8 (22s comprobados)
+            # NOTA: attention_slicing, vae_tiling, y to(device) rompen la cuantización GGUF
+            print("  [FLASH] Habilitando CPU Offload optimizado para GGUF...", file=sys.stderr)
+            pipeline.enable_model_cpu_offload()
             
             load_time = time.time() - load_start
-            print(f"  [FLASH] Modelo inicializado en {load_time:.2f}s", file=sys.stderr)
+            print(f"  [FLASH] Pipeline listo en {load_time:.2f}s", file=sys.stderr)
             
-            # WARMUP: Crucial para ambos casos (full gpu o cpu offload) para compilar kernels/grafos
-            print("  [FLASH] Warmup: pre-compilando kernels CUDA...", file=sys.stderr)
+            # WARMUP: Pre-compilar kernels CUDA
+            print("  [FLASH] Warmup: pre-compilando kernels...", file=sys.stderr)
             warmup_start = time.time()
             try:
-                # Usar el mismo modo de inferencia que usaremos en producción
                 with torch.inference_mode():
                     warmup_generator = torch.Generator(device).manual_seed(42)
                     _ = pipeline(
                         prompt="warmup",
-                        num_inference_steps=1, 
+                        num_inference_steps=1,
                         guidance_scale=0.0,
-                        height=512, # Usar tamaño realista para warmup de memoria
+                        height=512,
                         width=512,
                         generator=warmup_generator,
                         output_type="latent"
@@ -275,7 +250,7 @@ def generate_image_with_pipeline(pipeline, device: str, prompt: str, width: int,
         with torch.inference_mode():
             images = pipeline(
                 prompt=prompt,
-                num_inference_steps=9,  # 8 forwards reales para modelo Turbo
+                num_inference_steps=9,  # Turbo model optimizado para 9 pasos
                 guidance_scale=0.0,     # Turbo models don't need guidance
                 height=height,
                 width=width,
