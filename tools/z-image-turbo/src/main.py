@@ -186,55 +186,71 @@ def load_model(flash_mode: bool = False):
     )
     
     if device == "cuda":
+        # Estrategia adaptativa para VRAM
+        vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+        
         if flash_mode:
-            # MODO FLASH: Modelo completo en GPU para máxima velocidad
-            print("  [FLASH] Cargando modelo completo en GPU...", file=sys.stderr)
-            pipeline = pipeline.to(device)
+            # MODO FLASH: Optimizado para velocidad y persistencia
             
-            # Habilitar VAE tiling para eficiencia de memoria en imágenes grandes
+            # Decidir si cabe todo en VRAM (Umbral conservador: 12GB para modelo + VAE + act + text enc)
+            fits_in_vram = vram_gb >= 12.0
+            
+            if fits_in_vram:
+                print(f"  [FLASH] VRAM suficiente ({vram_gb:.1f} GB). Cargando modelo completo en GPU...", file=sys.stderr)
+                pipeline = pipeline.to(device)
+            else:
+                print(f"  [FLASH] VRAM limitada ({vram_gb:.1f} GB < 12 GB). Usando CPU Offload optimizado...", file=sys.stderr)
+                # enable_model_cpu_offload mantiene el modelo en RAM y mueve a GPU bajo demanda
+                pipeline.enable_model_cpu_offload()
+
+            # Habilitar VAE tiling (siempre bueno para resoluciones altas sin OOM)
             print("  [FLASH] Habilitando VAE tiling...", file=sys.stderr)
             pipeline.vae.enable_tiling()
             
-            # Intentar compilar el modelo para kernels optimizados (PyTorch 2.0+)
+            # Compilación (intentar siempre en Flash mode)
             try:
                 if hasattr(torch, 'compile') and torch.cuda.get_device_capability()[0] >= 7:
+                    import logging
+                    logging.getLogger("torch._dynamo").setLevel(logging.ERROR)
+                    torch._dynamo.config.suppress_errors = True
+                    
                     print("  [FLASH] Compilando modelo con torch.compile()...", file=sys.stderr)
-                    # Usar mode="reduce-overhead" para mejor rendimiento en inferencia
                     pipeline.transformer = torch.compile(
                         pipeline.transformer, 
                         mode="reduce-overhead",
-                        fullgraph=False  # Más compatible
+                        fullgraph=False
                     )
             except Exception as e:
-                print(f"  [FLASH] torch.compile no disponible: {e}", file=sys.stderr)
+                print(f"  [FLASH] torch.compile no disponible (normal en Windows): {e}", file=sys.stderr)
             
             load_time = time.time() - load_start
-            print(f"  [FLASH] Modelo cargado en GPU en {load_time:.2f}s", file=sys.stderr)
+            print(f"  [FLASH] Modelo inicializado en {load_time:.2f}s", file=sys.stderr)
             
-            # WARMUP: Hacer una inferencia pequeña para pre-compilar kernels CUDA
+            # WARMUP: Crucial para ambos casos (full gpu o cpu offload) para compilar kernels/grafos
             print("  [FLASH] Warmup: pre-compilando kernels CUDA...", file=sys.stderr)
             warmup_start = time.time()
             try:
+                # Usar el mismo modo de inferencia que usaremos en producción
                 with torch.inference_mode():
-                    # Generar imagen pequeña de 64x64 para warmup rápido
                     warmup_generator = torch.Generator(device).manual_seed(42)
                     _ = pipeline(
                         prompt="warmup",
-                        num_inference_steps=1,  # Solo 1 paso para warmup
+                        num_inference_steps=1, 
                         guidance_scale=0.0,
-                        height=64,
-                        width=64,
+                        height=512, # Usar tamaño realista para warmup de memoria
+                        width=512,
                         generator=warmup_generator,
-                        output_type="latent"  # No decodificar, solo warmup del transformer
+                        output_type="latent"
                     )
-                # Sincronizar GPU
-                torch.cuda.synchronize()
+                if torch.cuda.is_available():
+                    torch.cuda.synchronize()
                 warmup_time = time.time() - warmup_start
                 print(f"  [FLASH] Warmup completado en {warmup_time:.2f}s", file=sys.stderr)
             except Exception as e:
                 print(f"  [FLASH] Warmup fallido (no crítico): {e}", file=sys.stderr)
+        
         else:
-            # MODO NORMAL: CPU Offload para balance VRAM/Velocidad
+            # MODO NORMAL: CPU Offload estándar
             print("  Habilitando CPU Offload (Balance VRAM/Velocidad)...", file=sys.stderr)
             pipeline.enable_model_cpu_offload()
     else:
