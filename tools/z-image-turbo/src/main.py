@@ -211,7 +211,7 @@ def load_model(flash_mode: bool = False):
                 
                 # Intentar cerrar handles y liberar memoria antes de borrar
                 del transformer
-                import gc
+
                 gc.collect()
                 
                 try:
@@ -220,7 +220,7 @@ def load_model(flash_mode: bool = False):
                             os.remove(model_path)
                             print(f"  [INFO] Archivo corrupto eliminado: {model_path}", file=sys.stderr)
                         except OSError as remove_err:
-                            import time
+
                             print(f"  [WARN] Falló el borrado ({remove_err}), intentando renombrar...", file=sys.stderr)
                             # Fallback: Renombrar para liberar el path
                             trash_path = model_path.with_name(f"{model_path.name}.corrupt.{int(time.time())}")
