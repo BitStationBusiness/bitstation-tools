@@ -173,6 +173,7 @@ def load_model(flash_mode: bool = False):
     print("  Cargando transformer...", file=sys.stderr)
     
     max_retries = 1
+    transformer = None
     for attempt in range(max_retries + 1):
         try:
             # Asegurar que el archivo existe antes de intentar cargar
@@ -202,7 +203,15 @@ def load_model(flash_mode: bool = False):
             )
             
             if is_corruption and attempt < max_retries:
-                print(f"  [ERROR] Modelo corrupto detectado ({str(e)[:100]}...). Eliminando y re-descargando...", file=sys.stderr)
+                # Sanitizar el mensaje de error para evitar fallos de encoding en logs
+                safe_err_msg = str(e).encode('ascii', 'replace').decode('ascii')
+                print(f"  [ERROR] Modelo corrupto detectado. Eliminando y re-descargando... (Detalle: {safe_err_msg[:100]}...)", file=sys.stderr)
+                
+                # Intentar cerrar handles y liberar memoria antes de borrar
+                del transformer
+                import gc
+                gc.collect()
+                
                 try:
                     if model_path.exists():
                         os.remove(model_path)
@@ -213,7 +222,8 @@ def load_model(flash_mode: bool = False):
                          _ensure_model(model_path)
                     
                 except Exception as del_err:
-                    print(f"  [ERROR] No se pudo eliminar el archivo corrupto: {del_err}", file=sys.stderr)
+                    safe_del_err = str(del_err).encode('ascii', 'replace').decode('ascii')
+                    print(f"  [ERROR] No se pudo eliminar el archivo corrupto: {safe_del_err}", file=sys.stderr)
                     # Si no podemos borrar, no tiene sentido reintentar
                     raise e
             else:
