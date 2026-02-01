@@ -126,67 +126,74 @@ def _ensure_model(model_path: Path) -> dict | None:
             "error": f"No se pudo descargar el modelo GGUF: {e}",
         }
 
-def generate_image(prompt: str, width: int, height: int, output_path: Path) -> dict:
+def load_model():
     """
-    Genera una imagen usando Diffusers con ZImagePipeline.
+    Carga el modelo Z-Image Turbo y retorna el pipeline configurado.
+    Este modelo puede ser reutilizado en modo persistente.
     """
     try:
         import torch
         from diffusers import ZImagePipeline, ZImageTransformer2DModel, GGUFQuantizationConfig
     except ImportError as e:
-        return {"ok": False, "error": f"diffusers o torch no instalado: {e}"}
+        raise ImportError(f"diffusers o torch no instalado: {e}")
     
+    model_path = _get_default_model_path()
+    if not model_path.exists():
+        download_error = _ensure_model(model_path)
+        if download_error is not None:
+            raise RuntimeError(download_error.get("error", "Error descargando modelo"))
+    if not model_path.exists():
+        raise FileNotFoundError(
+            f"Modelo GGUF no encontrado. Ejecuta setup.ps1 para descargarlo "
+            f"o define ZIMAGE_MODEL_PATH. Path esperado: {model_path}"
+        )
+
+    print(f"  Cargando modelo: {model_path}")
+    
+    # Determinar el dispositivo y dtype
+    if torch.cuda.is_available():
+        device = "cuda"
+        dtype = torch.bfloat16
+        print(f"  Usando GPU: {torch.cuda.get_device_name(0)}")
+    else:
+        device = "cpu"
+        dtype = torch.float32
+        print("  ADVERTENCIA: Usando CPU. La generación será muy lenta.")
+
+    # Cargar el transformer desde el archivo GGUF
+    print("  Cargando transformer...")
+    transformer = ZImageTransformer2DModel.from_single_file(
+        str(model_path),
+        quantization_config=GGUFQuantizationConfig(compute_dtype=dtype),
+        torch_dtype=dtype,
+    )
+    
+    # Crear el pipeline sin moverlo a CUDA todavía
+    print("  Inicializando pipeline...")
+    pipeline = ZImagePipeline.from_pretrained(
+        "Tongyi-MAI/Z-Image-Turbo",
+        transformer=transformer,
+        torch_dtype=dtype,
+    )
+    
+    # Estrategia: CPU Offload por defecto para evitar swapping del driver en Windows
+    if device == "cuda":
+        print("  Habilitando CPU Offload (Balance VRAM/Velocidad)...")
+        pipeline.enable_model_cpu_offload()
+        # Opcional: enable_sequential_cpu_offload() si fuera aun muy grande, pero Q4 deberia ir bien con model_cpu_offload
+    else:
+        pipeline.to(device)
+    
+    return pipeline, device
+
+
+def generate_image_with_pipeline(pipeline, device: str, prompt: str, width: int, height: int, output_path: Path) -> dict:
+    """
+    Genera una imagen usando un pipeline ya cargado.
+    """
     try:
-        model_path = _get_default_model_path()
-        if not model_path.exists():
-            download_error = _ensure_model(model_path)
-            if download_error is not None:
-                return download_error
-        if not model_path.exists():
-            return {
-                "ok": False,
-                "error": (
-                    "Modelo GGUF no encontrado. Ejecuta setup.ps1 para descargarlo "
-                    f"o define ZIMAGE_MODEL_PATH. Path esperado: {model_path}"
-                ),
-            }
-
-        print(f"  Cargando modelo: {model_path}")
+        import torch
         
-        # Determinar el dispositivo y dtype
-        if torch.cuda.is_available():
-            device = "cuda"
-            dtype = torch.bfloat16
-            print(f"  Usando GPU: {torch.cuda.get_device_name(0)}")
-        else:
-            device = "cpu"
-            dtype = torch.float32
-            print("  ADVERTENCIA: Usando CPU. La generación será muy lenta.")
-
-        # Cargar el transformer desde el archivo GGUF
-        print("  Cargando transformer...")
-        transformer = ZImageTransformer2DModel.from_single_file(
-            str(model_path),
-            quantization_config=GGUFQuantizationConfig(compute_dtype=dtype),
-            torch_dtype=dtype,
-        )
-        
-        # Crear el pipeline sin moverlo a CUDA todavía
-        print("  Inicializando pipeline...")
-        pipeline = ZImagePipeline.from_pretrained(
-            "Tongyi-MAI/Z-Image-Turbo",
-            transformer=transformer,
-            torch_dtype=dtype,
-        )
-        
-        # Estrategia: CPU Offload por defecto para evitar swapping del driver en Windows
-        if device == "cuda":
-            print("  Habilitando CPU Offload (Balance VRAM/Velocidad)...")
-            pipeline.enable_model_cpu_offload()
-            # Opcional: enable_sequential_cpu_offload() si fuera aun muy grande, pero Q4 deberia ir bien con model_cpu_offload
-        else:
-            pipeline.to(device)
-
         # Generar imagen
         print("  Generando imagen...")
         seed = int(datetime.now().timestamp()) % (2**32)
@@ -220,11 +227,163 @@ def generate_image(prompt: str, width: int, height: int, output_path: Path) -> d
         traceback.print_exc()
         return {"ok": False, "error": f"Error al generar imagen: {str(e)}"}
 
+
+def generate_image(prompt: str, width: int, height: int, output_path: Path) -> dict:
+    """
+    Genera una imagen usando Diffusers con ZImagePipeline.
+    Modo normal: carga el modelo, genera la imagen, y libera recursos.
+    """
+    try:
+        pipeline, device = load_model()
+        return generate_image_with_pipeline(pipeline, device, prompt, width, height, output_path)
+    except ImportError as e:
+        return {"ok": False, "error": f"diffusers o torch no instalado: {e}"}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"ok": False, "error": f"Error al generar imagen: {str(e)}"}
+
+
+def run_persistent_mode() -> int:
+    """
+    Modo Flash (Persistente): Mantiene el modelo en GPU y procesa múltiples jobs.
+    Usa JSON-RPC sobre STDIN/STDOUT.
+    """
+    import torch
+    
+    try:
+        # Cargar modelo una sola vez
+        print("Iniciando modo Flash (persistente)...", file=sys.stderr)
+        pipeline, device = load_model()
+        
+        # Log GPU mode
+        if device == "cuda":
+            print("GPU mode enabled, model pinned in VRAM", file=sys.stderr)
+        else:
+            print("GPU mode enabled (CPU), model loaded in RAM", file=sys.stderr)
+        
+        # Señal de que estamos listos
+        ready_signal = {"status": "ready"}
+        print(json.dumps(ready_signal, ensure_ascii=False))
+        sys.stdout.flush()
+        
+        # Bucle de procesamiento
+        job_count = 0
+        while True:
+            try:
+                # Leer job desde STDIN
+                line = sys.stdin.readline()
+                
+                # EOF: señal de cierre
+                if not line:
+                    print("GPU mode disabled, unloading model", file=sys.stderr)
+                    break
+                
+                line = line.strip()
+                if not line:
+                    continue  # Línea vacía, ignorar
+                
+                # Parsear job
+                try:
+                    job = json.loads(line)
+                except json.JSONDecodeError as e:
+                    error_result = {"ok": False, "error": f"JSON inválido: {e}"}
+                    print(json.dumps(error_result, ensure_ascii=False))
+                    sys.stdout.flush()
+                    continue
+                
+                # Validar job
+                if not isinstance(job, dict):
+                    error_result = {"ok": False, "error": "Job debe ser un objeto JSON"}
+                    print(json.dumps(error_result, ensure_ascii=False))
+                    sys.stdout.flush()
+                    continue
+                
+                if "prompt" not in job:
+                    error_result = {"ok": False, "error": "Campo requerido faltante: 'prompt'"}
+                    print(json.dumps(error_result, ensure_ascii=False))
+                    sys.stdout.flush()
+                    continue
+                
+                prompt = job["prompt"]
+                if not isinstance(prompt, str) or not prompt.strip():
+                    error_result = {"ok": False, "error": "El campo 'prompt' debe ser un string no vacío"}
+                    print(json.dumps(error_result, ensure_ascii=False))
+                    sys.stdout.flush()
+                    continue
+                
+                # Obtener tamaño (default: M)
+                size = job.get("size", "M").upper()
+                if size not in SIZE_MAP:
+                    error_result = {"ok": False, "error": f"Tamaño inválido: '{size}'. Valores válidos: S, M, B"}
+                    print(json.dumps(error_result, ensure_ascii=False))
+                    sys.stdout.flush()
+                    continue
+                
+                width, height = SIZE_MAP[size]
+                
+                # Generar nombre único para la imagen
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                safe_prompt = "".join(c if c.isalnum() or c in " -_" else "" for c in prompt[:30])
+                safe_prompt = safe_prompt.strip().replace(" ", "_")
+                filename = f"zimg_{timestamp}_{safe_prompt}.png"
+                
+                # Guardar en carpeta de Descargas
+                downloads = get_downloads_folder()
+                image_output_path = downloads / filename
+                
+                job_count += 1
+                job_id = job.get("id", job_count)
+                print(f"Procesando job {job_id}: {prompt[:50]}...", file=sys.stderr)
+                
+                # Generar imagen usando pipeline cargado
+                result = generate_image_with_pipeline(pipeline, device, prompt, width, height, image_output_path)
+                
+                # Enviar resultado
+                print(json.dumps(result, ensure_ascii=False))
+                sys.stdout.flush()
+                
+                # Limpiar memoria temporal (pero mantener modelo)
+                gc.collect()
+                if device == "cuda":
+                    torch.cuda.empty_cache()
+                
+            except KeyboardInterrupt:
+                print("GPU mode disabled, unloading model", file=sys.stderr)
+                break
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                error_result = {"ok": False, "error": f"Error interno: {str(e)}"}
+                print(json.dumps(error_result, ensure_ascii=False))
+                sys.stdout.flush()
+        
+        return 0
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(json.dumps({"ok": False, "error": f"Error al iniciar modo persistente: {str(e)}"}), file=sys.stderr)
+        return 1
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Z-Image Turbo - Generador de imágenes")
-    ap.add_argument("--input", required=True, help="Path a input.json")
-    ap.add_argument("--output", required=True, help="Path a output.json")
+    ap.add_argument("--input", help="Path a input.json (modo normal)")
+    ap.add_argument("--output", help="Path a output.json (modo normal)")
+    ap.add_argument("--persistent", action="store_true", help="Modo Flash: mantiene modelo en GPU para múltiples jobs")
     args = ap.parse_args()
+
+    # Modo persistente
+    if args.persistent:
+        if args.input or args.output:
+            print("ERROR: --persistent no se puede usar con --input/--output", file=sys.stderr)
+            return 2
+        return run_persistent_mode()
+    
+    # Modo normal: validar que input y output estén presentes
+    if not args.input or not args.output:
+        ap.error("Modo normal requiere --input y --output (o usa --persistent para modo Flash)")
+        return 2
 
     in_path = Path(args.input)
     out_path = Path(args.output)
