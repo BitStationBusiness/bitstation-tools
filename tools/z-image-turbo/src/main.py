@@ -185,10 +185,12 @@ def load_model(flash_mode: bool = False):
                 elif not model_path.exists():
                      raise FileNotFoundError(f"Modelo no encontrado en: {model_path}")
             
+            # Intentar cargar sin mmap para evitar bloqueo de archivo si falla
             transformer = ZImageTransformer2DModel.from_single_file(
                 str(model_path),
                 quantization_config=GGUFQuantizationConfig(compute_dtype=dtype),
                 torch_dtype=dtype,
+                disable_mmap=True,
             )
             # Si carga exitosamente, salir del bucle
             break
@@ -214,8 +216,16 @@ def load_model(flash_mode: bool = False):
                 
                 try:
                     if model_path.exists():
-                        os.remove(model_path)
-                        print(f"  [INFO] Archivo corrupto eliminado: {model_path}", file=sys.stderr)
+                        try:
+                            os.remove(model_path)
+                            print(f"  [INFO] Archivo corrupto eliminado: {model_path}", file=sys.stderr)
+                        except OSError as remove_err:
+                            import time
+                            print(f"  [WARN] Falló el borrado ({remove_err}), intentando renombrar...", file=sys.stderr)
+                            # Fallback: Renombrar para liberar el path
+                            trash_path = model_path.with_name(f"{model_path.name}.corrupt.{int(time.time())}")
+                            os.rename(model_path, trash_path)
+                            print(f"  [INFO] Archivo renombrado a: {trash_path.name}", file=sys.stderr)
                     
                     # Forzar descarga en el siguiente ciclo
                     if "models" in str(model_path):
