@@ -33,7 +33,7 @@ if (!(Test-Path $venvPython)) {
         exit 3
     }
     
-    & $setupScript
+    & "$setupScript"
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Setup fallido con código: $LASTEXITCODE"
         exit $LASTEXITCODE
@@ -47,5 +47,5 @@ if (!(Test-Path $mainScript)) {
 }
 
 # Ejecutar la herramienta
-& $venvPython $mainScript --input $InPath --output $OutPath
+& "$venvPython" "$mainScript" --input "$InPath" --output "$OutPath"
 exit $LASTEXITCODE

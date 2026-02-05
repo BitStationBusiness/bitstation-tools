@@ -21,5 +21,5 @@ if (!(Test-Path $src)) {
 $py = $env:BITSTATION_PYTHON
 if ([string]::IsNullOrWhiteSpace($py)) { $py = "python" }
 
-& $py $src --input $InPath --output $OutPath
+& "$py" "$src" --input "$InPath" --output "$OutPath"
 exit $LASTEXITCODE
