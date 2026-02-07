@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+temp/
+output/
+uploads/
+cpu_test_out/
+*.log
+backend/BM-Generator.log
+backend/__pycache__/
+backend/core/__pycache__/

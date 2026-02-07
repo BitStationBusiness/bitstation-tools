@@ -1,0 +1,5 @@
+demucs-infer
+soundfile
+pydub
+mutagen
+pydantic

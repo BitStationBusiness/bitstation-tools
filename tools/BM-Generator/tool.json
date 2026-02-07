@@ -1,0 +1,66 @@
+{
+    "tool_id": "bm-generator",
+    "name": "BM Generator (Music Album Creator)",
+    "version": "1.0.0",
+    "category": "audio-processing",
+    "platforms": [
+        "windows"
+    ],
+    "entrypoint_windows": "runner/run.ps1",
+    "needs_models": true,
+    "supports_gpu_persistence": true,
+    "io_schema": {
+        "input": {
+            "type": "object",
+            "required": [
+                "action"
+            ],
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": [
+                        "analyze",
+                        "build"
+                    ],
+                    "description": "Action to perform: 'analyze' for metadata extraction or 'build' for album creation."
+                },
+                "files": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "List of absolute file paths to analyze (required for 'analyze' action)."
+                },
+                "album_data": {
+                    "type": "object",
+                    "description": "Full album metadata structure (required for 'build' action)."
+                }
+            }
+        },
+        "output": {
+            "type": "object",
+            "required": [
+                "ok"
+            ],
+            "properties": {
+                "ok": {
+                    "type": "boolean"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "analyzed_songs": {
+                    "type": "array",
+                    "items": {
+                        "type": "object"
+                    },
+                    "description": "List of extracted metadata for songs (result of 'analyze')."
+                },
+                "bm_file_path": {
+                    "type": "string",
+                    "description": "Path to the generated .bm file (result of 'build')."
+                }
+            }
+        }
+    }
+}
