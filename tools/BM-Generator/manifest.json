@@ -1,0 +1,129 @@
+{
+  "manifest_version": "1.0",
+  "tool_id": "bm-generator",
+  "tool_version": "1.0.0",
+  "created_at": "2026-02-07T12:06:49.832354+00:00",
+  "files": [
+    {
+      "path": ".gitignore",
+      "sha256": "44e67696e3513845cb52804fdd9d1e293e8ce9eb214bdaeb21a83df5e632f2a9",
+      "size": 166,
+      "url": "https://hq.bitstation.local/api/v1/tools/bm-generator/1.0.0/files/.gitignore"
+    },
+    {
+      "path": "backend/benchmark_flash.py",
+      "sha256": "672557a46b29db734ab5c6c5c1e1e8f40716b4f22b80233c139ec3cb7db3c362",
+      "size": 5081,
+      "url": "https://hq.bitstation.local/api/v1/tools/bm-generator/1.0.0/files/backend/benchmark_flash.py",
+      "executable": true
+    },
+    {
+      "path": "backend/cli.py",
+      "sha256": "2bffe003652cc89630f183c3046b84e347adef52cda3fdea50a6351f8a5ac879",
+      "size": 8745,
+      "url": "https://hq.bitstation.local/api/v1/tools/bm-generator/1.0.0/files/backend/cli.py",
+      "executable": true
+    },
+    {
+      "path": "backend/core/builder.py",
+      "sha256": "e62a8c2b0ab4170d8742197dd9c49ce2ef9e24218c4828afa912d1609581595c",
+      "size": 5813,
+      "url": "https://hq.bitstation.local/api/v1/tools/bm-generator/1.0.0/files/backend/core/builder.py",
+      "executable": true
+    },
+    {
+      "path": "backend/core/demucs_handler.py",
+      "sha256": "a42914ec375216a763b2bc0eb374dead736261878bffc6261b136179120b9159",
+      "size": 5770,
+      "url": "https://hq.bitstation.local/api/v1/tools/bm-generator/1.0.0/files/backend/core/demucs_handler.py",
+      "executable": true
+    },
+    {
+      "path": "backend/core/metadata_handler.py",
+      "sha256": "8f88ac2ca10f69c7b91bf9c2d0725412ad5d04a04baf98fe6d47d9035b75f979",
+      "size": 4236,
+      "url": "https://hq.bitstation.local/api/v1/tools/bm-generator/1.0.0/files/backend/core/metadata_handler.py",
+      "executable": true
+    },
+    {
+      "path": "backend/create_dummy_wav.py",
+      "sha256": "d71b9995f8dd32bd2df9909f1c6d9a9220ca46bb52db24020e61a1b666e8e043",
+      "size": 724,
+      "url": "https://hq.bitstation.local/api/v1/tools/bm-generator/1.0.0/files/backend/create_dummy_wav.py",
+      "executable": true
+    },
+    {
+      "path": "backend/requirements.txt",
+      "sha256": "913a7dd88a6eee04b9d8845e11c95e6a7b031ac5c39fe533f23fe65baab4c3be",
+      "size": 51,
+      "url": "https://hq.bitstation.local/api/v1/tools/bm-generator/1.0.0/files/backend/requirements.txt"
+    },
+    {
+      "path": "backend/test_cli.py",
+      "sha256": "84b172cdfeacd148440184060702f72ba86b659390d6ed5228164dd4cea0892d",
+      "size": 3502,
+      "url": "https://hq.bitstation.local/api/v1/tools/bm-generator/1.0.0/files/backend/test_cli.py",
+      "executable": true
+    },
+    {
+      "path": "icon.png",
+      "sha256": "787a15344f3a21ca201dcbd7c5491a0c1ad8984d288679294b5d2898ea885267",
+      "size": 12052,
+      "url": "https://hq.bitstation.local/api/v1/tools/bm-generator/1.0.0/files/icon.png"
+    },
+    {
+      "path": "manifest.json",
+      "sha256": "9d0aacf252dfd8565a104f46cd509f30c4e632509a69d7e6ba1cf8c168696a48",
+      "size": 4581,
+      "url": "https://hq.bitstation.local/api/v1/tools/bm-generator/1.0.0/files/manifest.json"
+    },
+    {
+      "path": "output/Bench Album.bm",
+      "sha256": "e694986e7ee68593a18e2b9d75268c21ec92387d546c2090705c920e834b1bad",
+      "size": 158699304,
+      "url": "https://hq.bitstation.local/api/v1/tools/bm-generator/1.0.0/files/output/Bench%20Album.bm"
+    },
+    {
+      "path": "requirements.lock.txt",
+      "sha256": "366c4a8c4b52ea2fd37e992446f3b260c49ec22162996fe5fc54cb10afec2fd5",
+      "size": 56,
+      "url": "https://hq.bitstation.local/api/v1/tools/bm-generator/1.0.0/files/requirements.lock.txt"
+    },
+    {
+      "path": "runner/run.ps1",
+      "sha256": "d1713b33feb83d70905480b25d10beec8ea544d60ec43244e7c0551b5abb420d",
+      "size": 1623,
+      "url": "https://hq.bitstation.local/api/v1/tools/bm-generator/1.0.0/files/runner/run.ps1",
+      "executable": true
+    },
+    {
+      "path": "tool.json",
+      "sha256": "a74ca7311eb0db425277de0b754ddf1ae3c57b41accbbf7a345922ec0916f119",
+      "size": 2144,
+      "url": "https://hq.bitstation.local/api/v1/tools/bm-generator/1.0.0/files/tool.json"
+    }
+  ],
+  "delete_policy": "safe",
+  "ignore_globs": [
+    "venv/**",
+    ".venv/**",
+    "cache/**",
+    "user_data/**",
+    "logs/**",
+    "*.log",
+    ".env",
+    "config.local.*",
+    "__pycache__/**",
+    "*.pyc"
+  ],
+  "flash_gpu_config": {
+    "enabled": true,
+    "warmup_script": "src/main.py",
+    "cache_artifacts": [
+      "cache/**/*.gguf",
+      "cache/**/*.safetensors",
+      "cache/**/*.bin"
+    ]
+  },
+  "manifest_hash": "d1ac47c3ce1799861d62a156cf1faf4ce6653396f88148758e4da337a0f86d17"
+}

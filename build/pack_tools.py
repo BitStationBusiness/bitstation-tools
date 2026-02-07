@@ -5,7 +5,7 @@ import zipfile
 from datetime import datetime
 from pathlib import Path
 
-EXCLUDE_NAMES = {".git", "__pycache__", ".venv", "venv", "dist"}
+EXCLUDE_NAMES = {".git", "__pycache__", ".venv", "venv", "dist", "models", "Models for z image turbo temp"}
 
 def sha256_file(path: Path) -> str:
     h = hashlib.sha256()
@@ -32,23 +32,44 @@ def main() -> int:
     tools = []
     for tdir in sorted([p for p in tools_dir.iterdir() if p.is_dir() and p.name not in EXCLUDE_NAMES]):
         meta_path = tdir / "tool.json"
+        if not meta_path.exists():
+            print(f"[pack] SKIP: {tdir.name} (no tool.json)")
+            continue
+            
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
 
         tool_id = meta["tool_id"]
         version = meta["version"]
+        
+        # Leer manifest.json (debe existir previamente)
+        manifest_path = tdir / "manifest.json"
+        manifest_hash = None
+        if manifest_path.exists():
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest_hash = manifest["manifest_hash"]
+            print(f"[pack] Tool: {tool_id} v{version} (manifest_hash: {manifest_hash[:16]}...)")
+        else:
+            print(f"[pack] WARN: {tool_id} sin manifest.json - ejecuta primero generate_manifest.py")
+        
         asset_name = f"tool_{tool_id}_{version}.zip"
         asset_path = dist_dir / asset_name
 
-        # build zip
+        # build zip (incluye manifest.json si existe)
         if asset_path.exists():
-            asset_path.unlink()
+            try:
+                asset_path.unlink()
+            except PermissionError:
+                print(f"[pack] WARN: No se puede eliminar {asset_name} (en uso), saltando...")
+                continue
 
+        print(f"[pack] Empaquetando {asset_name}...")
         with zipfile.ZipFile(asset_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
             add_dir_to_zip(zf, tdir, tdir)
 
         digest = sha256_file(asset_path)
+        print(f"[pack]   SHA256: {digest[:16]}...")
 
-        tools.append({
+        tool_entry = {
             "tool_id": tool_id,
             "name": meta["name"],
             "latest": version,
@@ -56,7 +77,12 @@ def main() -> int:
             "sha256": digest,
             "platforms": meta["platforms"],
             "category": meta.get("category", "uncategorized")
-        })
+        }
+        
+        if manifest_hash:
+            tool_entry["manifest_hash"] = manifest_hash
+        
+        tools.append(tool_entry)
 
     catalog = {
         "catalog_version": datetime.utcnow().strftime("%Y.%m.%d"),

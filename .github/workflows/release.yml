@@ -21,6 +21,9 @@ jobs:
       - name: Validate tools
         run: python build/validate_tools.py
 
+      - name: Generate manifests
+        run: python build/generate_manifest.py
+
       - name: Pack tools
         run: python build/pack_tools.py
 

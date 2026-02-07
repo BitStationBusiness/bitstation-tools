@@ -11,6 +11,14 @@ env/
 dist/
 *.zip
 
+# Models (downloaded from HuggingFace)
+**/models/
+*.gguf
+*.safetensors
+*.bin
+*.pth
+*.ckpt
+
 # OS / Editor
 .DS_Store
 Thumbs.db
