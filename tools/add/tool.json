@@ -1,39 +1,38 @@
 {
   "tool_id": "add",
   "name": "Sumador (Test)",
-  "version": "0.1.4",
+  "version": "0.2.0",
+  "description": "Herramienta de prueba: suma dos números. Demuestra frontend + backend + bridge.",
   "category": "core-test",
   "platforms": [
-    "windows"
+    "windows",
+    "android"
   ],
   "entrypoint_windows": "runner/run.ps1",
   "needs_models": false,
   "supports_gpu_persistence": false,
+  "api_contract": "toolbridge/1",
+  "has_frontend": true,
+  "capabilities": {
+    "supports_local_windows": true,
+    "supports_android_ui": true,
+    "requires_gpu": false,
+    "supports_gpu_flash": false
+  },
   "io_schema": {
     "input": {
       "type": "object",
-      "required": [
-        "a",
-        "b"
-      ],
+      "required": ["a", "b"],
       "properties": {
-        "a": {
-          "type": "number"
-        },
-        "b": {
-          "type": "number"
-        }
+        "a": { "type": "number" },
+        "b": { "type": "number" }
       }
     },
     "output": {
       "type": "object",
-      "required": [
-        "result"
-      ],
+      "required": ["result"],
       "properties": {
-        "result": {
-          "type": "number"
-        }
+        "result": { "type": "number" }
       }
     }
   }

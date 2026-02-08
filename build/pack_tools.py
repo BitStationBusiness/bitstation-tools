@@ -1,3 +1,4 @@
+import argparse
 import hashlib
 import json
 import os
@@ -6,6 +7,9 @@ from datetime import datetime
 from pathlib import Path
 
 EXCLUDE_NAMES = {".git", "__pycache__", ".venv", "venv", "dist", "models", "Models for z image turbo temp"}
+
+# GitHub repository for Release URLs
+GITHUB_REPO = os.environ.get("GITHUB_REPOSITORY", "BitStationBusiness/bitstation-tools")
 
 def sha256_file(path: Path) -> str:
     h = hashlib.sha256()
@@ -24,6 +28,13 @@ def add_dir_to_zip(zf: zipfile.ZipFile, root: Path, base: Path) -> None:
         zf.write(p, rel)
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description="Empaqueta tools y genera catalog.json")
+    parser.add_argument("--release-tag", default=None,
+                        help="Tag del release (ej: v0.6.0). Se usa para construir URLs de assets.")
+    args = parser.parse_args()
+
+    release_tag = args.release_tag or os.environ.get("RELEASE_TAG")
+
     repo = Path(__file__).resolve().parents[1]
     tools_dir = repo / "tools"
     dist_dir = repo / "dist"
@@ -81,6 +92,49 @@ def main() -> int:
         
         if manifest_hash:
             tool_entry["manifest_hash"] = manifest_hash
+
+        # --- Frontend packaging (frontend.zip separado) ---
+        frontend_dir = tdir / "frontend"
+        if frontend_dir.is_dir() and any(frontend_dir.iterdir()):
+            frontend_zip_name = f"frontend_{tool_id}_{version}.zip"
+            frontend_zip_path = dist_dir / frontend_zip_name
+            
+            if frontend_zip_path.exists():
+                try:
+                    frontend_zip_path.unlink()
+                except PermissionError:
+                    print(f"[pack] WARN: No se puede eliminar {frontend_zip_name}")
+            
+            print(f"[pack]   Empaquetando frontend: {frontend_zip_name}...")
+            with zipfile.ZipFile(frontend_zip_path, "w", compression=zipfile.ZIP_DEFLATED) as fz:
+                for fp in frontend_dir.rglob("*"):
+                    if fp.is_file() and not any(part in EXCLUDE_NAMES for part in fp.parts):
+                        rel = fp.relative_to(frontend_dir).as_posix()
+                        fz.write(fp, rel)
+            
+            frontend_sha = sha256_file(frontend_zip_path)
+            print(f"[pack]   Frontend SHA256: {frontend_sha[:16]}...")
+            
+            # URL absoluta al asset del GitHub Release
+            if release_tag:
+                tool_entry["frontend_url"] = (
+                    f"https://github.com/{GITHUB_REPO}/releases/download/"
+                    f"{release_tag}/{frontend_zip_name}"
+                )
+            else:
+                tool_entry["frontend_url"] = frontend_zip_name
+            tool_entry["frontend_sha256"] = frontend_sha
+            tool_entry["has_frontend"] = True
+            tool_entry["api_contract"] = meta.get("api_contract", "toolbridge/1")
+        else:
+            tool_entry["has_frontend"] = False
+
+        # --- Cover image URL (raw GitHub) ---
+        icon_path = tdir / "icon.png"
+        if icon_path.exists():
+            tool_entry["image_url"] = (
+                f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/tools/{tool_id}/icon.png"
+            )
         
         tools.append(tool_entry)
 

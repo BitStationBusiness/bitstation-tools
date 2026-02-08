@@ -25,7 +25,9 @@ jobs:
         run: python build/generate_manifest.py
 
       - name: Pack tools
-        run: python build/pack_tools.py
+        run: python build/pack_tools.py --release-tag ${{ github.ref_name }}
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
 
       - name: Publish GitHub Release assets
         uses: softprops/action-gh-release@v2
@@ -33,3 +35,4 @@ jobs:
           files: |
             dist/catalog.json
             dist/tool_*.zip
+            dist/frontend_*.zip
