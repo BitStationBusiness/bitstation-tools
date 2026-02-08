@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Z-Image Turbo</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>Z-Image Turbo</h1>
+      <span id="bridge-status" class="status offline">offline</span>
+    </header>
+
+    <div id="chat-area">
+      <div id="messages"></div>
+      <div id="empty-state">
+        <div class="empty-icon">🎨</div>
+        <p>Describe la imagen que quieres generar</p>
+        <div class="suggestions">
+          <button class="suggestion" onclick="useSuggestion(this)">A futuristic city at sunset</button>
+          <button class="suggestion" onclick="useSuggestion(this)">A cat wearing a space helmet</button>
+          <button class="suggestion" onclick="useSuggestion(this)">Mountain landscape with northern lights</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="input-area">
+      <div class="size-selector">
+        <button class="size-btn" data-size="S" title="512×512">S</button>
+        <button class="size-btn active" data-size="M" title="768×768">M</button>
+        <button class="size-btn" data-size="B" title="1024×1024">B</button>
+      </div>
+      <div class="input-row">
+        <textarea id="prompt-input" placeholder="Describe your image..." rows="2"></textarea>
+        <button id="send-btn" onclick="generate()" title="Generate">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div id="log-panel" class="collapsed">
+      <div class="log-header" onclick="toggleLog()">
+        <span>Logs</span>
+        <span id="log-toggle">▸</span>
+      </div>
+      <div id="log-content"></div>
+    </div>
+  </div>
+
+  <script src="bridge.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
