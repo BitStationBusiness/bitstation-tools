@@ -25,9 +25,6 @@ SIZE_MAP = {
     "B": (1024, 1024),  # Big - Alta calidad
 }
 
-# Tamaño mínimo esperado del modelo GGUF (4.5 GB) - archivos menores están corruptos/incompletos
-MIN_MODEL_SIZE_BYTES = 4_500_000_000
-
 def fail(msg: str, out_path: Path, code: int = 2) -> None:
     """Escribe error en output y termina."""
     error_output = {"ok": False, "error": msg}
@@ -90,23 +87,11 @@ def _download_with_progress(url: str, dest_path: Path) -> None:
 
 def _ensure_model(model_path: Path) -> dict | None:
     """
-    Descarga el modelo automáticamente si no existe o está incompleto.
+    Descarga el modelo automáticamente si no existe.
     Usa Hugging Face Hub por defecto o ZIMAGE_MODEL_URL si se define.
     """
-    # Verificar si el archivo existe Y tiene el tamaño correcto
     if model_path.exists():
-        file_size = model_path.stat().st_size
-        if file_size >= MIN_MODEL_SIZE_BYTES:
-            return None  # Archivo válido
-        else:
-            # Archivo incompleto/corrupto - borrar y re-descargar
-            print(f"  [WARN] Modelo incompleto detectado ({file_size // (1024*1024)} MB < 4500 MB esperados). Eliminando...", file=sys.stderr)
-            try:
-                os.remove(model_path)
-                print(f"  [INFO] Archivo incompleto eliminado.", file=sys.stderr)
-            except OSError as e:
-                print(f"  [ERROR] No se pudo eliminar archivo incompleto: {e}", file=sys.stderr)
-                return {"ok": False, "error": f"Modelo corrupto y no se pudo eliminar: {e}"}
+        return None
 
     try:
         model_path.parent.mkdir(parents=True, exist_ok=True)
@@ -156,12 +141,10 @@ def load_model(flash_mode: bool = False):
         raise ImportError(f"diffusers o torch no instalado: {e}")
     
     model_path = _get_default_model_path()
-    
-    # Siempre validar modelo (existencia Y tamaño) - _ensure_model maneja archivos incompletos
-    download_error = _ensure_model(model_path)
-    if download_error is not None:
-        raise RuntimeError(download_error.get("error", "Error descargando modelo"))
-    
+    if not model_path.exists():
+        download_error = _ensure_model(model_path)
+        if download_error is not None:
+            raise RuntimeError(download_error.get("error", "Error descargando modelo"))
     if not model_path.exists():
         raise FileNotFoundError(
             f"Modelo GGUF no encontrado. Ejecuta setup.ps1 para descargarlo "

@@ -12,10 +12,13 @@
   let selectedSize = 'M';
   let isGenerating = false;
   let currentJobId = null;
+  let cancelRequested = false;
+  let lastPrompt = '';
 
   // Size selector
   document.querySelectorAll('.size-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+      if (isGenerating) return;
       document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       selectedSize = btn.dataset.size;
@@ -39,12 +42,10 @@
     logContent.scrollTop = logContent.scrollHeight;
   }
 
-  // Toggle log panel
   window.toggleLog = function() {
     document.getElementById('log-panel').classList.toggle('collapsed');
   };
 
-  // Suggestion click
   window.useSuggestion = function(btn) {
     promptInput.value = btn.textContent;
     promptInput.focus();
@@ -53,35 +54,60 @@
   // Add message to chat
   function addMessage(content, type, extra) {
     emptyState.style.display = 'none';
-
     const msg = document.createElement('div');
     msg.className = 'msg ' + type;
     msg.innerHTML = content;
     if (extra) msg.innerHTML += extra;
-
     messagesEl.appendChild(msg);
-
-    // Scroll to bottom
     const chatArea = document.getElementById('chat-area');
     chatArea.scrollTop = chatArea.scrollHeight;
-
     return msg;
   }
 
-  // Init bridge
+  // Init bridge with retries (WebView2 may inject BitStationBridge after page load)
   async function initBridge() {
-    try {
-      const result = await window.ToolBridge.handshake();
-      const mode = window.ToolBridge.isShellMode() ? 'Shell' : 'HTTP';
-      bridgeStatusEl.textContent = mode;
-      bridgeStatusEl.className = 'status online';
-      log('Bridge connected: ' + mode, 'ok');
-    } catch (e) {
-      bridgeStatusEl.textContent = 'offline';
-      bridgeStatusEl.className = 'status offline';
-      log('Bridge error: ' + e.message, 'error');
+    const maxRetries = 5;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        // Wait for bridge injection (800ms delay in WebView2)
+        if (attempt === 1) await sleep(1000);
+
+        const result = await window.ToolBridge.handshake();
+        const mode = window.ToolBridge.isShellMode() ? 'Shell' : 'HTTP';
+        bridgeStatusEl.textContent = mode;
+        bridgeStatusEl.className = 'status online';
+        log('Bridge connected: ' + mode + ' (attempt ' + attempt + ') | ' + JSON.stringify(result), 'ok');
+        return; // Success
+      } catch (e) {
+        log('Bridge attempt ' + attempt + '/' + maxRetries + ': ' + e.message, attempt < maxRetries ? '' : 'error');
+        if (attempt < maxRetries) {
+          await sleep(1000 * attempt);
+        }
+      }
     }
+    bridgeStatusEl.textContent = 'offline';
+    bridgeStatusEl.className = 'status offline';
+    log('Bridge failed after ' + maxRetries + ' attempts', 'error');
   }
+
+  // Cancel current job
+  window.cancelGeneration = async function() {
+    if (!isGenerating) return;
+    cancelRequested = true;
+
+    if (currentJobId) {
+      try {
+        await window.ToolBridge.cancelJob(currentJobId);
+        log('Job cancelled: ' + currentJobId, 'ok');
+      } catch (e) {
+        log('Cancel error: ' + e.message, 'error');
+      }
+    }
+
+    // Restore last prompt for editing
+    promptInput.value = lastPrompt;
+    promptInput.focus();
+  };
 
   // Generate image
   window.generate = async function() {
@@ -89,8 +115,14 @@
     if (!prompt || isGenerating) return;
 
     isGenerating = true;
+    cancelRequested = false;
+    currentJobId = null;
+    lastPrompt = prompt;
     sendBtn.disabled = true;
     promptInput.value = '';
+
+    // Show cancel button in input area
+    updateInputUI(true);
 
     // User message
     const sizeLabel = { S: '512px', M: '768px', B: '1024px' }[selectedSize] || selectedSize;
@@ -100,9 +132,12 @@
       '<span class="size-badge">' + sizeLabel + '</span>'
     );
 
-    // Generating indicator
+    // Generating indicator with cancel
     const genMsg = addMessage(
-      '<div class="generating"><div class="spinner"></div><span>Generating image...</span></div>',
+      '<div class="generating">' +
+        '<div class="spinner"></div>' +
+        '<span>Submitting job...</span>' +
+      '</div>',
       'system'
     );
 
@@ -114,65 +149,85 @@
         size: selectedSize,
       });
 
-      log('Job submitted: ' + JSON.stringify(result).substring(0, 100));
+      if (cancelRequested) {
+        showCancelled(genMsg);
+        return;
+      }
 
-      // If we got a job_id, poll for result
+      log('Submit result: ' + JSON.stringify(result).substring(0, 200));
+
       const jobId = result.job_id || result.jobId;
       if (jobId) {
         currentJobId = jobId;
+        genMsg.querySelector('.generating span').textContent = 'Generating... (job: ' + jobId.substring(0, 8) + ')';
         log('Polling job: ' + jobId);
         await pollJob(jobId, genMsg);
-      } else if (result.result || result.output) {
-        // Direct result (local execution)
-        showResult(genMsg, result.result || result.output);
       } else if (result.ok === false) {
-        showError(genMsg, result.error || 'Unknown error');
+        showError(genMsg, result.error || 'Job creation failed');
       } else {
+        // Direct result
         showResult(genMsg, result);
       }
     } catch (e) {
-      log('Error: ' + e.message, 'error');
-      showError(genMsg, e.message);
+      if (cancelRequested) {
+        showCancelled(genMsg);
+      } else {
+        log('Error: ' + e.message, 'error');
+        showError(genMsg, e.message);
+      }
     } finally {
       isGenerating = false;
       sendBtn.disabled = false;
       currentJobId = null;
+      cancelRequested = false;
+      updateInputUI(false);
     }
   };
 
   // Poll job status
   async function pollJob(jobId, msgEl) {
-    const maxAttempts = 180; // 15 min max
-    const interval = 5000;   // 5s
+    const maxAttempts = 180;
+    const interval = 5000;
 
     for (let i = 0; i < maxAttempts; i++) {
+      if (cancelRequested) {
+        showCancelled(msgEl);
+        return;
+      }
+
       await sleep(interval);
+
+      if (cancelRequested) {
+        showCancelled(msgEl);
+        return;
+      }
 
       try {
         const status = await window.ToolBridge.jobStatus(jobId);
-        const state = status.status || status.state || '';
+        const state = (status.status || status.state || '').toUpperCase();
 
         log('Poll #' + (i + 1) + ': ' + state);
 
-        // Update generating message
-        const stateLabel = state.charAt(0).toUpperCase() + state.slice(1).toLowerCase();
-        msgEl.innerHTML = '<div class="generating"><div class="spinner"></div><span>' +
-          stateLabel + '...</span></div>';
+        // Update message
+        const stateText = state.charAt(0) + state.slice(1).toLowerCase();
+        const spinner = msgEl.querySelector('.generating');
+        if (spinner) {
+          spinner.querySelector('span').textContent = stateText + '... (job: ' + jobId.substring(0, 8) + ')';
+        }
 
-        if (state === 'DONE' || state === 'done' || state === 'completed') {
+        if (state === 'DONE' || state === 'COMPLETED') {
           const output = status.result?.output || status.output || status.result || status;
           showResult(msgEl, output);
           return;
         }
 
-        if (state === 'FAILED' || state === 'failed' || state === 'error') {
+        if (state === 'FAILED' || state === 'ERROR') {
           const err = status.error || status.result?.error || 'Job failed';
           showError(msgEl, err);
           return;
         }
       } catch (e) {
         log('Poll error: ' + e.message, 'error');
-        // Continue polling unless fatal
         if (e.message.includes('404') || e.message.includes('not found')) {
           showError(msgEl, 'Job not found');
           return;
@@ -180,14 +235,12 @@
       }
     }
 
-    showError(msgEl, 'Timeout: image generation took too long');
+    showError(msgEl, 'Timeout: generation took too long');
   }
 
-  // Show image result
+  // Show result
   function showResult(msgEl, output) {
     let html = '';
-
-    // Try to find image URL from various response formats
     const imageUrl = output.file_url || output.image_url || output.url;
     const imageBase64 = output.image_base64;
     const imagePath = output.image_path;
@@ -201,23 +254,38 @@
     } else if (imagePath) {
       html = '<p>Image saved: ' + escapeHtml(imagePath) + '</p>';
     } else {
-      html = '<p>Result: ' + escapeHtml(JSON.stringify(output).substring(0, 200)) + '</p>';
+      html = '<p>Result: ' + escapeHtml(JSON.stringify(output).substring(0, 300)) + '</p>';
     }
 
-    if (width && height) {
-      html += '<div class="meta">' + width + '×' + height + 'px</div>';
-    }
+    if (width && height) html += '<div class="meta">' + width + '×' + height + 'px</div>';
 
     msgEl.className = 'msg system';
     msgEl.innerHTML = html;
-    log('Image generated successfully', 'ok');
+    log('Image generated!', 'ok');
   }
 
-  // Show error
   function showError(msgEl, error) {
     msgEl.className = 'msg error';
     msgEl.innerHTML = '⚠ ' + escapeHtml(error);
     log('Error: ' + error, 'error');
+  }
+
+  function showCancelled(msgEl) {
+    msgEl.className = 'msg error';
+    msgEl.innerHTML = '⏹ Cancelled';
+    log('Generation cancelled by user', 'ok');
+  }
+
+  // Toggle between send button and cancel button
+  function updateInputUI(generating) {
+    const cancelBtn = document.getElementById('cancel-btn');
+    if (generating) {
+      sendBtn.style.display = 'none';
+      cancelBtn.style.display = 'flex';
+    } else {
+      sendBtn.style.display = 'flex';
+      cancelBtn.style.display = 'none';
+    }
   }
 
   // Utilities
@@ -227,9 +295,7 @@
     return div.innerHTML;
   }
 
-  function sleep(ms) {
-    return new Promise(r => setTimeout(r, ms));
-  }
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
   // Init
   initBridge();

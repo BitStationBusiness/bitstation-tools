@@ -46,7 +46,7 @@ $pythonCmd = $env:BITSTATION_PYTHON
 if ([string]::IsNullOrWhiteSpace($pythonCmd)) { $pythonCmd = "python" }
 
 try {
-    $pyVersion = & $pythonCmd --version 2>&1
+    $pyVersion = & "$pythonCmd" --version 2>&1
     Write-Host "Python encontrado: $pyVersion" -ForegroundColor Green
 }
 catch {
@@ -62,7 +62,7 @@ if ($Force -and (Test-Path $venvPath)) {
 
 if (!(Test-Path $venvPath)) {
     Write-Host "Creando entorno virtual en: $venvPath" -ForegroundColor Cyan
-    & $pythonCmd -m venv $venvPath
+    & "$pythonCmd" -m venv "$venvPath"
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Error al crear entorno virtual"
         exit 2
@@ -82,7 +82,7 @@ Write-Host "Entorno virtual listo" -ForegroundColor Green
 
 # Actualizar pip
 Write-Host "Actualizando pip..." -ForegroundColor Cyan
-& $venvPython -m pip install --upgrade pip --quiet
+& "$venvPython" -m pip install --upgrade pip --quiet
 if ($LASTEXITCODE -ne 0) {
     Write-Warning "No se pudo actualizar pip, continuando..."
 }
@@ -107,11 +107,11 @@ catch {
 # Instalar PyTorch
 if ($hasNvidia) {
     Write-Host "Instalando PyTorch con soporte CUDA (para GPU NVIDIA)..." -ForegroundColor Cyan
-    & $venvPip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+    & "$venvPip" install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 }
 else {
     Write-Host "Instalando PyTorch estándar (CPU)..." -ForegroundColor Cyan
-    & $venvPip install torch torchvision torchaudio
+    & "$venvPip" install torch torchvision torchaudio
 }
 
 if ($LASTEXITCODE -ne 0) {
@@ -121,7 +121,7 @@ if ($LASTEXITCODE -ne 0) {
 # Instalar dependencias
 if (Test-Path $requirementsPath) {
     Write-Host "Instalando dependencias desde requirements.txt..." -ForegroundColor Cyan
-    & $venvPip install -r $requirementsPath
+    & "$venvPip" install -r "$requirementsPath"
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Error al instalar dependencias"
         exit 4

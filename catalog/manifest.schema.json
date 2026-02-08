@@ -1,0 +1,171 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "BitStation Tool Release Manifest v1",
+  "description": "Manifiesto de release para actualización diferencial por hash",
+  "type": "object",
+  "required": [
+    "manifest_version",
+    "tool_id",
+    "tool_version",
+    "manifest_hash",
+    "files",
+    "delete_policy",
+    "ignore_globs"
+  ],
+  "properties": {
+    "manifest_version": {
+      "type": "string",
+      "const": "1.0",
+      "description": "Versión del formato de manifiesto"
+    },
+    "tool_id": {
+      "type": "string",
+      "minLength": 2,
+      "description": "Identificador único de la tool"
+    },
+    "tool_version": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Versión semántica de la tool (ej: 2.4.1)"
+    },
+    "manifest_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "SHA256 del manifiesto normalizado (para verificación de integridad)"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp ISO 8601 de creación del manifiesto"
+    },
+    "files": {
+      "type": "array",
+      "description": "Lista de archivos en este release",
+      "items": {
+        "type": "object",
+        "required": ["path", "sha256", "size", "url"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Ruta relativa del archivo dentro de la tool (normalizada con /)"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "description": "Hash SHA256 del contenido del archivo"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Tamaño del archivo en bytes"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "URL de descarga directa del archivo individual (requerido para delta update real)"
+          },
+          "executable": {
+            "type": "boolean",
+            "description": "Indica si el archivo debe ser ejecutable (Unix)"
+          }
+        }
+      }
+    },
+    "delete_policy": {
+      "type": "string",
+      "enum": ["safe", "aggressive", "manual"],
+      "default": "safe",
+      "description": "Política de eliminación: safe (solo archivos conocidos antiguos), aggressive (todo lo no listado), manual (requiere confirmación)"
+    },
+    "ignore_globs": {
+      "type": "array",
+      "description": "Patrones glob de archivos/carpetas a NUNCA borrar durante actualización",
+      "items": {
+        "type": "string"
+      },
+      "default": [
+        "venv/**",
+        ".venv/**",
+        "cache/**",
+        "user_data/**",
+        "logs/**",
+        "*.log",
+        ".env",
+        "config.local.*"
+      ]
+    },
+    "dependencies": {
+      "type": "object",
+      "description": "Dependencias externas requeridas",
+      "properties": {
+        "python_min": {
+          "type": "string",
+          "description": "Versión mínima de Python requerida"
+        },
+        "cuda_min": {
+          "type": "string",
+          "description": "Versión mínima de CUDA (si aplica)"
+        }
+      }
+    },
+    "flash_gpu_config": {
+      "type": "object",
+      "description": "Configuración para operación Flash GPU",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "warmup_script": {
+          "type": "string",
+          "description": "Ruta al script de warmup GPU"
+        },
+        "cache_artifacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Patrones de archivos a cachear después del warmup"
+        }
+      }
+    },
+    "frontend": {
+      "type": "object",
+      "description": "Configuración del frontend web (micro-frontend)",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["web", "none"],
+          "default": "none",
+          "description": "Tipo de frontend: web (HTML/JS/CSS) o none"
+        },
+        "entry": {
+          "type": "string",
+          "description": "Archivo de entrada (ej: index.html)"
+        },
+        "archive": {
+          "type": "string",
+          "description": "Nombre del archivo zip del frontend"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "SHA256 del archivo frontend.zip"
+        }
+      }
+    },
+    "api_contract": {
+      "type": "string",
+      "description": "Versión del bridge API (ej: toolbridge/1). Define compatibilidad con el Shell.",
+      "pattern": "^[a-z]+/[0-9]+$"
+    },
+    "capabilities": {
+      "type": "array",
+      "description": "Capacidades de la tool: supports_gpu_flash, requires_gpu, supports_local_windows, etc.",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    }
+  }
+}

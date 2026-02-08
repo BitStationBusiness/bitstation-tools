@@ -262,6 +262,23 @@ header h1 {
   transform: none;
 }
 
+#cancel-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ff4444, #cc0000);
+  border: none;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+#cancel-btn:hover { transform: scale(1.05); }
+#cancel-btn:active { transform: scale(0.95); }
+
 /* Log panel */
 #log-panel {
   border-top: 1px solid var(--border);

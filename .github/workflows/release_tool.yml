@@ -1,0 +1,120 @@
+name: Release Tool Package
+
+on:
+  push:
+    tags:
+      - 'tool/*/v*'  # e.g. tool/add/v0.2.0
+  workflow_dispatch:
+    inputs:
+      tool_id:
+        description: 'Tool ID to release (e.g. add)'
+        required: true
+      version:
+        description: 'Version tag (e.g. v0.2.0)'
+        required: true
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Determine tool info
+        id: info
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TOOL_ID="${{ github.event.inputs.tool_id }}"
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            # Parse from tag: tool/<tool_id>/v<version>
+            TAG="${GITHUB_REF#refs/tags/}"
+            TOOL_ID=$(echo "$TAG" | cut -d'/' -f2)
+            VERSION=$(echo "$TAG" | cut -d'/' -f3)
+          fi
+          echo "tool_id=$TOOL_ID" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=tool/${TOOL_ID}/${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Validate tool exists
+        run: |
+          python build/validate_tools.py
+          test -d "tools/${{ steps.info.outputs.tool_id }}" || {
+            echo "ERROR: tool '${{ steps.info.outputs.tool_id }}' not found"
+            exit 1
+          }
+
+      - name: Generate manifests
+        run: python build/generate_manifest.py
+
+      - name: Pack tools
+        run: python build/pack_tools.py
+
+      - name: Prepare release assets
+        id: assets
+        run: |
+          TOOL_ID="${{ steps.info.outputs.tool_id }}"
+          VERSION="${{ steps.info.outputs.version }}"
+          TOOL_DIR="tools/${TOOL_ID}"
+          ASSETS=""
+
+          # Main tool zip
+          MAIN_ZIP=$(ls dist/tool_${TOOL_ID}_*.zip 2>/dev/null | head -1)
+          if [ -n "$MAIN_ZIP" ]; then
+            ASSETS="$ASSETS $MAIN_ZIP"
+          fi
+
+          # Frontend zip (if exists)
+          FRONTEND_ZIP=$(ls dist/frontend_${TOOL_ID}_*.zip 2>/dev/null | head -1)
+          if [ -n "$FRONTEND_ZIP" ]; then
+            ASSETS="$ASSETS $FRONTEND_ZIP"
+          fi
+
+          # Manifest
+          if [ -f "${TOOL_DIR}/manifest.json" ]; then
+            ASSETS="$ASSETS ${TOOL_DIR}/manifest.json"
+          fi
+
+          # Catalog
+          if [ -f "dist/catalog.json" ]; then
+            ASSETS="$ASSETS dist/catalog.json"
+          fi
+
+          # Cover/icon
+          if [ -f "${TOOL_DIR}/icon.png" ]; then
+            cp "${TOOL_DIR}/icon.png" "dist/cover_${TOOL_ID}.png"
+            ASSETS="$ASSETS dist/cover_${TOOL_ID}.png"
+          fi
+
+          # Generate checksums
+          cd dist
+          sha256sum *.zip *.json 2>/dev/null > checksums.sha256 || true
+          cd ..
+          ASSETS="$ASSETS dist/checksums.sha256"
+
+          echo "files=$ASSETS" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.info.outputs.tag }}
+          name: "${{ steps.info.outputs.tool_id }} ${{ steps.info.outputs.version }}"
+          body: |
+            ## Tool Package Release
+
+            **Tool:** ${{ steps.info.outputs.tool_id }}
+            **Version:** ${{ steps.info.outputs.version }}
+
+            ### Assets
+            - `tool_*.zip` — Full tool package (backend + frontend + manifest)
+            - `frontend_*.zip` — Frontend-only package (for BitStationApp)
+            - `manifest.json` — Release manifest with SHA256 hashes
+            - `catalog.json` — Updated catalog
+            - `checksums.sha256` — SHA256 checksums of all assets
+          files: ${{ steps.assets.outputs.files }}
+          fail_on_unmatched_files: false
