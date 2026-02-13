@@ -126,6 +126,52 @@ def _ensure_model(model_path: Path) -> dict | None:
             "error": f"No se pudo descargar el modelo GGUF: {e}",
         }
 
+
+def _safe_ascii(msg: object) -> str:
+    """Normaliza texto para logs en stderr sin romper encoding."""
+    try:
+        return str(msg).encode("ascii", "replace").decode("ascii")
+    except Exception:
+        return "<unprintable>"
+
+
+def _is_managed_model_path(model_path: Path) -> bool:
+    """Indica si el modelo vive en la carpeta local administrada por la tool."""
+    return "models" in str(model_path)
+
+
+def _best_effort_dispose_corrupt_file(model_path: Path) -> tuple[bool, str | None]:
+    """
+    Intenta liberar un archivo corrupto (delete/rename) sin romper si esta bloqueado.
+    Retorna (ok, error_message).
+    """
+    if not model_path.exists():
+        return True, None
+
+    last_err: Exception | None = None
+
+    for _ in range(3):
+        try:
+            os.remove(model_path)
+            return True, None
+        except PermissionError as e:
+            last_err = e
+            time.sleep(0.6)
+        except FileNotFoundError:
+            return True, None
+        except OSError as e:
+            last_err = e
+            break
+
+    try:
+        trash_path = model_path.with_name(f"{model_path.name}.corrupt.{int(time.time())}")
+        os.rename(model_path, trash_path)
+        return True, None
+    except Exception as e:
+        last_err = e
+
+    return False, _safe_ascii(last_err)
+
 def load_model(flash_mode: bool = False):
     """
     Carga el modelo Z-Image Turbo y retorna el pipeline configurado.
@@ -172,22 +218,25 @@ def load_model(flash_mode: bool = False):
     # Cargar el transformer desde el archivo GGUF con reintento por corrupción
     print("  Cargando transformer...", file=sys.stderr)
     
-    max_retries = 1
+    max_retries = 2
     transformer = None
+    active_model_path = model_path
     for attempt in range(max_retries + 1):
         try:
             # Asegurar que el archivo existe antes de intentar cargar
-            if not model_path.exists():
+            if not active_model_path.exists():
                 print(f"  [INFO] El modelo no existe, descargando...", file=sys.stderr)
                 # Intentar llamar a _ensure_model si el path está en models/ por defecto
-                if "models" in str(model_path):
-                     _ensure_model(model_path)
-                elif not model_path.exists():
-                     raise FileNotFoundError(f"Modelo no encontrado en: {model_path}")
+                if _is_managed_model_path(active_model_path):
+                     download_error = _ensure_model(active_model_path)
+                     if download_error is not None:
+                         raise RuntimeError(download_error.get("error", "Error descargando modelo"))
+                elif not active_model_path.exists():
+                     raise FileNotFoundError(f"Modelo no encontrado en: {active_model_path}")
             
             # Intentar cargar sin mmap para evitar bloqueo de archivo si falla
             transformer = ZImageTransformer2DModel.from_single_file(
-                str(model_path),
+                str(active_model_path),
                 quantization_config=GGUFQuantizationConfig(compute_dtype=dtype),
                 torch_dtype=dtype,
                 disable_mmap=True,
@@ -198,47 +247,59 @@ def load_model(flash_mode: bool = False):
         except (OSError, ValueError, UnicodeDecodeError, RuntimeError) as e:
             # Detectar errores típicos de archivo corrupto
             is_corruption = (
-                "Unable to load weights" in str(e) or 
-                "cannot reshape array" in str(e) or 
+                "Unable to load weights" in str(e) or
+                "cannot reshape array" in str(e) or
                 "charmap" in str(e) or
                 "invalid load key" in str(e)
             )
-            
+
             if is_corruption and attempt < max_retries:
-                # Sanitizar el mensaje de error para evitar fallos de encoding en logs
-                safe_err_msg = str(e).encode('ascii', 'replace').decode('ascii')
-                print(f"  [ERROR] Modelo corrupto detectado. Eliminando y re-descargando... (Detalle: {safe_err_msg[:100]}...)", file=sys.stderr)
-                
-                # Intentar cerrar handles y liberar memoria antes de borrar
-                del transformer
+                safe_err_msg = _safe_ascii(e)
+                print(
+                    "  [ERROR] Modelo corrupto detectado. Recuperando... "
+                    f"(Detalle: {safe_err_msg[:120]}...)",
+                    file=sys.stderr,
+                )
 
+                if transformer is not None:
+                    del transformer
                 gc.collect()
-                
-                try:
-                    if model_path.exists():
-                        try:
-                            os.remove(model_path)
-                            print(f"  [INFO] Archivo corrupto eliminado: {model_path}", file=sys.stderr)
-                        except OSError as remove_err:
+                time.sleep(0.3)
 
-                            print(f"  [WARN] Falló el borrado ({remove_err}), intentando renombrar...", file=sys.stderr)
-                            # Fallback: Renombrar para liberar el path
-                            trash_path = model_path.with_name(f"{model_path.name}.corrupt.{int(time.time())}")
-                            os.rename(model_path, trash_path)
-                            print(f"  [INFO] Archivo renombrado a: {trash_path.name}", file=sys.stderr)
-                    
-                    # Forzar descarga en el siguiente ciclo
-                    if "models" in str(model_path):
-                         _ensure_model(model_path)
-                    
-                except Exception as del_err:
-                    safe_del_err = str(del_err).encode('ascii', 'replace').decode('ascii')
-                    print(f"  [ERROR] No se pudo eliminar el archivo corrupto: {safe_del_err}", file=sys.stderr)
-                    # Si no podemos borrar, no tiene sentido reintentar
-                    raise e
+                dispose_ok, dispose_err = _best_effort_dispose_corrupt_file(active_model_path)
+
+                if dispose_ok:
+                    if _is_managed_model_path(active_model_path):
+                        download_error = _ensure_model(active_model_path)
+                        if download_error is not None:
+                            raise RuntimeError(download_error.get("error", "Error descargando modelo"))
+                    continue
+
+                # Si el modelo base está bloqueado por otro proceso, usar copia de recuperación.
+                if active_model_path == model_path and _is_managed_model_path(model_path):
+                    fallback_path = model_path.with_name(f"{model_path.stem}.recovery{model_path.suffix}")
+                    print(
+                        "  [WARN] No se pudo liberar el modelo base "
+                        f"({dispose_err}). Usando copia de recuperación: {fallback_path.name}",
+                        file=sys.stderr,
+                    )
+                    _best_effort_dispose_corrupt_file(fallback_path)
+                    download_error = _ensure_model(fallback_path)
+                    if download_error is not None:
+                        raise RuntimeError(
+                            download_error.get("error", "Error descargando modelo de recuperación")
+                        )
+                    active_model_path = fallback_path
+                    print(f"  [INFO] Reintentando carga desde: {active_model_path}", file=sys.stderr)
+                    continue
+
+                print(f"  [ERROR] No se pudo recuperar el archivo corrupto: {dispose_err}", file=sys.stderr)
+                raise e
             else:
-                # Si no es corrupción o ya reintentamos, lanzar el error
-                print(f"  [FATAL] Fallo al cargar el modelo después de {attempt} reintentos.", file=sys.stderr)
+                print(
+                    f"  [FATAL] Fallo al cargar el modelo después de {attempt} reintentos.",
+                    file=sys.stderr,
+                )
                 raise e
     
     # Crear el pipeline

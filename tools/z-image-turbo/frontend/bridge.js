@@ -100,7 +100,7 @@
       }
       return sendViaHttp('/jobs', 'POST', {
         tool_id: 'z-image-turbo',
-        tool_version: '0.5.8',
+        tool_version: '0.5.9',
         input,
       });
     },
