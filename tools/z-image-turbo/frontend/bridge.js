@@ -100,7 +100,7 @@
       }
       return sendViaHttp('/jobs', 'POST', {
         tool_id: 'z-image-turbo',
-        tool_version: '0.5.7',
+        tool_version: '0.5.8',
         input,
       });
     },
@@ -144,6 +144,13 @@
         data_url: dataUrl,
         text: 'Imagen generada con Z-Image Turbo',
       });
+    },
+
+    async closeFrontend() {
+      if (!isShellMode()) {
+        throw new Error('closeFrontend is only available in shell mode');
+      }
+      return sendViaBridge('close_frontend', {});
     },
   };
 })();
