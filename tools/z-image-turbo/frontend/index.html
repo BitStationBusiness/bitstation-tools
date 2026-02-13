@@ -2,58 +2,63 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Z-Image Turbo</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@700;800;900&display=swap" rel="stylesheet">
+
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div id="app">
-    <header>
-      <h1>Z-Image Turbo</h1>
-      <span id="bridge-status" class="status offline">offline</span>
-    </header>
+    <div class="header">
+      <h1>Z-Image</h1>
+      <div class="subtitle">Generador IA de imagenes</div>
+    </div>
+    <div class="neon-divider"></div>
 
-    <div id="chat-area">
-      <div id="messages"></div>
-      <div id="empty-state">
-        <div class="empty-icon">🎨</div>
-        <p>Describe la imagen que quieres generar</p>
-        <div class="suggestions">
-          <button class="suggestion" onclick="useSuggestion(this)">A futuristic city at sunset</button>
-          <button class="suggestion" onclick="useSuggestion(this)">A cat wearing a space helmet</button>
-          <button class="suggestion" onclick="useSuggestion(this)">Mountain landscape with northern lights</button>
-        </div>
-      </div>
+    <div id="chat"></div>
+
+    <div id="suggestions">
+      <button class="suggestion-chip" data-prompt="Un atardecer en la playa">🌅 Un atardecer en la playa</button>
+      <button class="suggestion-chip" data-prompt="Montanas nevadas">🏔️ Montanas nevadas</button>
+      <button class="suggestion-chip" data-prompt="Un gato astronauta">🐱 Un gato astronauta</button>
+      <button class="suggestion-chip" data-prompt="Flores en primavera">🌸 Flores en primavera</button>
     </div>
 
-    <div id="input-area">
-      <div class="size-selector">
-        <button class="size-btn" data-size="S" title="512×512">S</button>
-        <button class="size-btn active" data-size="M" title="768×768">M</button>
-        <button class="size-btn" data-size="B" title="1024×1024">B</button>
-      </div>
-      <div class="input-row">
-        <textarea id="prompt-input" placeholder="Describe your image..." rows="2"></textarea>
-        <button id="send-btn" onclick="generate()" title="Generate">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-          </svg>
-        </button>
-        <button id="cancel-btn" onclick="cancelGeneration()" title="Cancel" style="display:none">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-            <rect x="6" y="6" width="12" height="12" rx="2"/>
-          </svg>
-        </button>
-      </div>
+    <div class="logs-toggle">
+      <button id="logToggle" onclick="toggleLogs()">▸ LOGS</button>
     </div>
+    <div id="logPanel"></div>
 
-    <div id="log-panel" class="collapsed">
-      <div class="log-header" onclick="toggleLog()">
-        <span>Logs</span>
-        <span id="log-toggle">▸</span>
-      </div>
-      <div id="log-content"></div>
+    <div class="input-bar">
+      <input
+        type="text"
+        id="promptInput"
+        placeholder="Describe la imagen..."
+        autocomplete="off"
+        spellcheck="false"
+      >
+      <select class="size-select" id="sizeSelect">
+        <option value="512x512">512²</option>
+        <option value="768x768">768²</option>
+        <option value="512x768">512×768</option>
+        <option value="768x512">768×512</option>
+      </select>
+      <button class="send-btn" id="sendBtn" onclick="submitPrompt()">
+        <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+      </button>
     </div>
+  </div>
+
+  <div class="zoom-overlay" id="zoomOverlay">
+    <button class="zoom-close" id="zoomClose" onclick="closeZoom()">✕</button>
+    <div class="zoom-container" id="zoomContainer">
+      <img id="zoomImg" src="" alt="Zoom">
+    </div>
+    <div class="zoom-hint">Scroll / pinch para zoom • Toca fuera para cerrar</div>
   </div>
 
   <script src="bridge.js"></script>
