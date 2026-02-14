@@ -201,15 +201,18 @@ def load_model(flash_mode: bool = False):
     print(f"  Cargando modelo: {model_path}", file=sys.stderr)
     
     # Determinar el dispositivo y dtype
-    if torch.cuda.is_available():
+    if torch.cuda.is_available() and torch.cuda.device_count() > 0:
         device = "cuda"
         dtype = torch.bfloat16
-        print(f"  Usando GPU: {torch.cuda.get_device_name(0)}", file=sys.stderr)
-        
-        # Mostrar VRAM disponible
-        total_vram = torch.cuda.get_device_properties(0).total_memory / (1024**3)
-        free_vram = (torch.cuda.get_device_properties(0).total_memory - torch.cuda.memory_allocated(0)) / (1024**3)
-        print(f"  VRAM total: {total_vram:.1f} GB, disponible: {free_vram:.1f} GB", file=sys.stderr)
+        try:
+            print(f"  Usando GPU: {torch.cuda.get_device_name(0)}", file=sys.stderr)
+            
+            # Mostrar VRAM disponible
+            total_vram = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+            free_vram = (torch.cuda.get_device_properties(0).total_memory - torch.cuda.memory_allocated(0)) / (1024**3)
+            print(f"  VRAM total: {total_vram:.1f} GB, disponible: {free_vram:.1f} GB", file=sys.stderr)
+        except Exception as e:
+            print(f"  [WARN] Error obteniendo info GPU: {e}", file=sys.stderr)
     else:
         device = "cpu"
         dtype = torch.float32
@@ -447,10 +450,10 @@ def run_persistent_mode() -> int:
         # Log GPU mode
         if device == "cuda":
             vram_used = torch.cuda.memory_allocated(0) / (1024**3)
-            print(f"GPU mode enabled, model pinned in VRAM ({vram_used:.2f} GB used)", file=sys.stderr)
-            print(f"Total initialization time: {total_init_time:.2f}s", file=sys.stderr)
+            print(f"[TURBO] GPU mode enabled. Model pinned in VRAM ({vram_used:.2f} GB used)", file=sys.stderr)
+            print(f"[TURBO] Ready in {total_init_time:.2f}s", file=sys.stderr)
         else:
-            print("Flash mode enabled (CPU), model loaded in RAM", file=sys.stderr)
+            print("[TURBO] CPU Flash mode enabled (Slow)", file=sys.stderr)
         
         # Señal de que estamos listos
         ready_signal = {"status": "ready"}

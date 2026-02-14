@@ -150,13 +150,23 @@ if (!(Test-Path $modelPath)) {
 
     try {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        Invoke-WebRequest -Uri $modelUrl -OutFile $modelPath
+        # Usar BITS para una descarga más robusta y limpia en segundo plano, o WebClient para control
+        # Invoke-WebRequest con barra de progreso nativa es aceptable, pero vamos a asegurar que no spammee
+        $wc = New-Object System.Net.WebClient
+        $wc.DownloadFile($modelUrl, $modelPath)
         Write-Host "Modelo descargado correctamente" -ForegroundColor Green
     }
     catch {
         Write-Error "Error al descargar el modelo: $_"
-        Write-Host "Puedes descargar manualmente y definir ZIMAGE_MODEL_PATH" -ForegroundColor Yellow
-        exit 5
+        Write-Host "Intentando método alternativo (Invoke-WebRequest)..." -ForegroundColor Yellow
+        try {
+             Invoke-WebRequest -Uri $modelUrl -OutFile $modelPath -ErrorAction Stop
+             Write-Host "Modelo descargado correctamente (Alternativo)" -ForegroundColor Green
+        } catch {
+             Write-Error "Fallo crítico en descarga: $_"
+             Write-Host "Puedes descargar manualmente y definir ZIMAGE_MODEL_PATH" -ForegroundColor Yellow
+             exit 5
+        }
     }
 }
 else {
