@@ -93,38 +93,72 @@ def _ensure_model(model_path: Path) -> dict | None:
     if model_path.exists():
         return None
 
-    try:
-        model_path.parent.mkdir(parents=True, exist_ok=True)
+    # Intentar descarga con reintentos para manejar bloqueo de archivo (WinError 32)
+    max_retries = 5
+    for attempt in range(max_retries):
+        try:
+            model_path.parent.mkdir(parents=True, exist_ok=True)
 
-        if DEFAULT_MODEL_URL:
-            print(f"  Descargando modelo (URL directa)...")
-            print(f"  URL: {DEFAULT_MODEL_URL}")
-            _download_with_progress(DEFAULT_MODEL_URL, model_path)
-            return None
+            # Verificar si ya existe (posiblemente descargado por otro proceso mientras esperábamos)
+            if model_path.exists():
+                # Verificar tamaño mínimo para asegurar que no es un archivo corrupto/parcial
+                if model_path.stat().st_size > 1024 * 1024:
+                    return None
 
-        print(f"  Descargando modelo desde Hugging Face...")
-        print(f"  Repo: {DEFAULT_MODEL_REPO}")
-        print(f"  Archivo: {DEFAULT_MODEL_FILE}")
+            if DEFAULT_MODEL_URL:
+                print(f"  Descargando modelo (URL directa)...")
+                print(f"  URL: {DEFAULT_MODEL_URL}")
+                _download_with_progress(DEFAULT_MODEL_URL, model_path)
+                return None
 
-        from huggingface_hub import hf_hub_download
+            print(f"  Descargando modelo desde Hugging Face...")
+            print(f"  Repo: {DEFAULT_MODEL_REPO}")
+            print(f"  Archivo: {DEFAULT_MODEL_FILE}")
 
-        cached = hf_hub_download(
-            repo_id=DEFAULT_MODEL_REPO,
-            filename=DEFAULT_MODEL_FILE,
-            local_dir=model_path.parent,
-            local_dir_use_symlinks=False,
-        )
-        cached_path = Path(cached)
-        if cached_path.resolve() != model_path.resolve():
-            shutil.copyfile(cached_path, model_path)
-        size_mb = model_path.stat().st_size // (1024 * 1024)
-        print(f"  Descarga completada: {size_mb} MB")
-        return None
-    except Exception as e:
-        return {
-            "ok": False,
-            "error": f"No se pudo descargar el modelo GGUF: {e}",
-        }
+            from huggingface_hub import hf_hub_download
+
+            cached = hf_hub_download(
+                repo_id=DEFAULT_MODEL_REPO,
+                filename=DEFAULT_MODEL_FILE,
+                local_dir=model_path.parent,
+                local_dir_use_symlinks=False,
+            )
+            cached_path = Path(cached)
+            if cached_path.resolve() != model_path.resolve():
+                shutil.copyfile(cached_path, model_path)
+            
+            if model_path.exists():
+                size_mb = model_path.stat().st_size // (1024 * 1024)
+                print(f"  Descarga completada: {size_mb} MB")
+                return None
+            
+        except (PermissionError, OSError) as e:
+            # WinError 32: El proceso no tiene acceso al archivo porque está siendo utilizado por otro proceso
+            is_locked = (getattr(e, 'winerror', 0) == 32) or ("acceso" in str(e) and "otro proceso" in str(e))
+            
+            if is_locked and attempt < max_retries - 1:
+                wait_time = 2.0 * (attempt + 1)
+                print(f"  [WARN] Archivo bloqueado, esperando {wait_time}s... (Intento {attempt + 1}/{max_retries})", file=sys.stderr)
+                time.sleep(wait_time)
+                continue
+            
+            if attempt == max_retries - 1:
+                return {
+                    "ok": False,
+                    "error": f"No se pudo descargar el modelo GGUF tras {max_retries} intentos (Bloqueado): {e}",
+                }
+            # Si no es error de bloqueo, re-lanzar o devolver error
+            return {
+                "ok": False,
+                "error": f"Error descargando modelo: {e}",
+            }
+        except Exception as e:
+             return {
+                "ok": False,
+                "error": f"No se pudo descargar el modelo GGUF: {e}",
+            }
+    
+    return None
 
 
 def _safe_ascii(msg: object) -> str:
