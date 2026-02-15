@@ -1,7 +1,7 @@
 {
   "manifest_version": "1.0",
   "tool_id": "z-image-turbo",
-  "tool_version": "0.7.6",
+  "tool_version": "0.7.8",
   "created_at": "2026-02-07T12:06:53.519674+00:00",
   "files": [
     {

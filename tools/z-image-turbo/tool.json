@@ -1,7 +1,7 @@
 {
     "tool_id": "z-image-turbo",
     "name": "Z-Image Turbo (Text to Image)",
-    "version": "0.7.6",
+    "version": "0.7.8",
     "category": "image-generation",
     "platforms": [
         "windows"

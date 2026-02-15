@@ -56,7 +56,7 @@
   async function initBridgeInfo() {
     try {
       await ToolBridge.handshake();
-    } catch (_) {}
+    } catch (_) { }
 
     if (workersCount) {
       workersCount.textContent = '0';
@@ -149,13 +149,19 @@
           addErrorMessage('Fallo la generacion: ' + (status.error || 'Error desconocido'));
           resetState();
         }
-      } catch (_) {}
+      } catch (_) { }
     }, 1000);
   }
 
   function handleResult(status) {
     const output = status.output || status.result || {};
-    let imageData = output.image_base64 || output.image || output.imageBase64;
+    // Priority: file_url (HQ CDN) > image_url (local server) > image_base64 > imageBase64 > image
+    let imageData =
+      output.file_url ||
+      output.image_url ||
+      output.image_base64 ||
+      output.imageBase64 ||
+      output.image;
 
     if (!imageData && typeof output === 'string' && output.length > 100) {
       imageData = output;
@@ -166,9 +172,11 @@
       return;
     }
 
-    const src = imageData.startsWith('data:')
-      ? imageData
-      : 'data:image/png;base64,' + imageData;
+    // If it's a URL (http/https) or data URL, use directly; otherwise treat as base64
+    const src =
+      imageData.startsWith('data:') || imageData.startsWith('http')
+        ? imageData
+        : 'data:image/png;base64,' + imageData;
 
     addImageMessage(src);
   }
@@ -178,7 +186,7 @@
 
     try {
       await ToolBridge.cancelJob(currentJobId);
-    } catch (_) {}
+    } catch (_) { }
 
     if (pollTimer) clearInterval(pollTimer);
 
@@ -283,7 +291,7 @@
       event.stopPropagation();
       try {
         await onClick();
-      } catch (_) {}
+      } catch (_) { }
     });
     return button;
   }
@@ -308,7 +316,7 @@
         await ToolBridge.copyImage(src);
         toast('Imagen copiada');
         return;
-      } catch (_) {}
+      } catch (_) { }
     }
 
     try {
@@ -328,7 +336,7 @@
         await ToolBridge.downloadImage(src, fileName);
         toast('Imagen guardada');
         return;
-      } catch (_) {}
+      } catch (_) { }
     }
 
     try {
@@ -352,7 +360,7 @@
       try {
         await ToolBridge.shareImage(src);
         return;
-      } catch (_) {}
+      } catch (_) { }
     }
 
     try {
@@ -380,10 +388,10 @@
     const ext = src.startsWith('data:image/jpeg')
       ? 'jpg'
       : src.startsWith('data:image/webp')
-      ? 'webp'
-      : src.startsWith('data:image/gif')
-      ? 'gif'
-      : 'png';
+        ? 'webp'
+        : src.startsWith('data:image/gif')
+          ? 'gif'
+          : 'png';
     return `z-image-${timestamp}.${ext}`;
   }
 
@@ -416,7 +424,7 @@
       try {
         await ToolBridge.closeFrontend();
         return;
-      } catch (_) {}
+      } catch (_) { }
     }
 
     if (window.history.length > 1) {
