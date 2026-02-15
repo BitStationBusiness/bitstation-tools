@@ -150,20 +150,28 @@ if (!(Test-Path $modelPath)) {
 
     try {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        # Usar BITS para una descarga más robusta y limpia en segundo plano, o WebClient para control
-        # Invoke-WebRequest con barra de progreso nativa es aceptable, pero vamos a asegurar que no spammee
+        # A7: Atomic download via .part file
+        $partPath = "$modelPath.part"
+        if (Test-Path $partPath) { Remove-Item -Force $partPath }
         $wc = New-Object System.Net.WebClient
-        $wc.DownloadFile($modelUrl, $modelPath)
+        $wc.DownloadFile($modelUrl, $partPath)
+        Move-Item -Path $partPath -Destination $modelPath -Force
         Write-Host "Modelo descargado correctamente" -ForegroundColor Green
     }
     catch {
+        # Clean up .part on failure
+        if (Test-Path "$modelPath.part") { Remove-Item -Force "$modelPath.part" }
         Write-Error "Error al descargar el modelo: $_"
-        Write-Host "Intentando método alternativo (Invoke-WebRequest)..." -ForegroundColor Yellow
+        Write-Host "Intentando metodo alternativo (Invoke-WebRequest)..." -ForegroundColor Yellow
         try {
-             Invoke-WebRequest -Uri $modelUrl -OutFile $modelPath -ErrorAction Stop
+             $partPath = "$modelPath.part"
+             if (Test-Path $partPath) { Remove-Item -Force $partPath }
+             Invoke-WebRequest -Uri $modelUrl -OutFile $partPath -ErrorAction Stop
+             Move-Item -Path $partPath -Destination $modelPath -Force
              Write-Host "Modelo descargado correctamente (Alternativo)" -ForegroundColor Green
         } catch {
-             Write-Error "Fallo crítico en descarga: $_"
+             if (Test-Path "$modelPath.part") { Remove-Item -Force "$modelPath.part" }
+             Write-Error "Fallo critico en descarga: $_"
              Write-Host "Puedes descargar manualmente y definir ZIMAGE_MODEL_PATH" -ForegroundColor Yellow
              exit 5
         }

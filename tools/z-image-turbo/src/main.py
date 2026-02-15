@@ -1,6 +1,12 @@
 """
 Z-Image Turbo - Generador de imágenes desde texto
 Usa Diffusers con ZImagePipeline para generación con modelos GGUF.
+
+A7: Robust GGUF model management with 4 pillars:
+  1. OS-level cross-process file lock
+  2. Atomic download (.part → rename)
+  3. Strong GGUF header validation
+  4. Separated load/repair (quarantine on corruption)
 """
 
 import argparse
@@ -53,112 +59,94 @@ def _get_default_model_path() -> Path:
     tool_root = Path(__file__).resolve().parents[1]
     return tool_root / "models" / DEFAULT_MODEL_FILE
 
-def _download_with_progress(url: str, dest_path: Path) -> None:
-    """Descarga con progreso básico en MB."""
-    import requests
+# ─────────────────────────────────────────────────────────────────────
+# A7 Pillar 1: OS-level cross-process file lock
+# ─────────────────────────────────────────────────────────────────────
 
-    chunk_size = 8 * 1024 * 1024
-    with requests.get(url, stream=True, timeout=30) as r:
-        r.raise_for_status()
-        total = int(r.headers.get("content-length", "0") or 0)
-        downloaded = 0
-        last_log = time.time()
-        last_pct = -1
+class ModelFileLock:
+    """
+    OS-level file lock using msvcrt (Windows) or fcntl (POSIX).
+    Ensures only one process can download/repair the GGUF at a time.
+    Other processes wait with a configurable timeout.
+    """
 
-        with open(dest_path, "wb") as f:
-            for chunk in r.iter_content(chunk_size=chunk_size):
-                if not chunk:
-                    continue
-                f.write(chunk)
-                downloaded += len(chunk)
+    def __init__(self, model_path: Path, timeout: int = 120):
+        self._lock_path = model_path.with_suffix(model_path.suffix + ".lock")
+        self._timeout = timeout
+        self._fd = None
+        self._acquired = False
 
-                now = time.time()
-                if total > 0:
-                    pct = int(downloaded * 100 / total)
-                    if pct >= last_pct + 5 or now - last_log >= 5:
-                        print(f"  Descarga: {pct}% ({downloaded // (1024*1024)} MB)")
-                        last_pct = pct
-                        last_log = now
+    def acquire_exclusive(self) -> bool:
+        """Acquire an exclusive lock. Returns True if acquired, False on timeout."""
+        self._lock_path.parent.mkdir(parents=True, exist_ok=True)
+        self._fd = open(self._lock_path, "w")
+
+        deadline = time.time() + self._timeout
+        poll_interval = 0.5
+
+        while True:
+            try:
+                if sys.platform == "win32":
+                    import msvcrt
+                    msvcrt.locking(self._fd.fileno(), msvcrt.LK_NBLCK, 1)
                 else:
-                    if now - last_log >= 5:
-                        print(f"  Descarga: {downloaded // (1024*1024)} MB")
-                        last_log = now
+                    import fcntl
+                    fcntl.flock(self._fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
 
+                self._acquired = True
+                _log("MODEL_LOCK_ACQUIRED", f"Lock acquired: {self._lock_path.name}")
+                return True
 
-def _ensure_model(model_path: Path) -> dict | None:
-    """
-    Descarga el modelo automáticamente si no existe.
-    Usa Hugging Face Hub por defecto o ZIMAGE_MODEL_URL si se define.
-    """
-    if model_path.exists():
-        return None
+            except (OSError, IOError):
+                if time.time() >= deadline:
+                    _log("MODEL_LOCK_TIMEOUT",
+                         f"Could not acquire lock after {self._timeout}s")
+                    self._fd.close()
+                    self._fd = None
+                    return False
 
-    # Intentar descarga con reintentos para manejar bloqueo de archivo (WinError 32)
-    max_retries = 5
-    for attempt in range(max_retries):
+                _log("MODEL_LOCK_WAIT",
+                     f"Lock held by another process, waiting {poll_interval}s...")
+                time.sleep(poll_interval)
+                poll_interval = min(poll_interval * 1.5, 5.0)
+
+    def release(self) -> None:
+        """Release the lock and close the file descriptor."""
+        if self._fd is None:
+            return
         try:
-            model_path.parent.mkdir(parents=True, exist_ok=True)
+            if self._acquired:
+                if sys.platform == "win32":
+                    import msvcrt
+                    try:
+                        msvcrt.locking(self._fd.fileno(), msvcrt.LK_UNLCK, 1)
+                    except OSError:
+                        pass
+                else:
+                    import fcntl
+                    fcntl.flock(self._fd.fileno(), fcntl.LOCK_UN)
+        finally:
+            self._fd.close()
+            self._fd = None
+            self._acquired = False
 
-            # Verificar si ya existe (posiblemente descargado por otro proceso mientras esperábamos)
-            if model_path.exists():
-                # Verificar tamaño mínimo para asegurar que no es un archivo corrupto/parcial
-                if model_path.stat().st_size > 1024 * 1024:
-                    return None
-
-            if DEFAULT_MODEL_URL:
-                print(f"  Descargando modelo (URL directa)...")
-                print(f"  URL: {DEFAULT_MODEL_URL}")
-                _download_with_progress(DEFAULT_MODEL_URL, model_path)
-                return None
-
-            print(f"  Descargando modelo desde Hugging Face...")
-            print(f"  Repo: {DEFAULT_MODEL_REPO}")
-            print(f"  Archivo: {DEFAULT_MODEL_FILE}")
-
-            from huggingface_hub import hf_hub_download
-
-            cached = hf_hub_download(
-                repo_id=DEFAULT_MODEL_REPO,
-                filename=DEFAULT_MODEL_FILE,
-                local_dir=model_path.parent,
-                local_dir_use_symlinks=False,
+    def __enter__(self):
+        if not self.acquire_exclusive():
+            raise TimeoutError(
+                f"MODEL_LOCK_TIMEOUT: Could not acquire model lock "
+                f"after {self._timeout}s. Another process may be downloading. "
+                f"Close z-image-turbo processes and retry."
             )
-            cached_path = Path(cached)
-            if cached_path.resolve() != model_path.resolve():
-                shutil.copyfile(cached_path, model_path)
-            
-            if model_path.exists():
-                size_mb = model_path.stat().st_size // (1024 * 1024)
-                print(f"  Descarga completada: {size_mb} MB")
-                return None
-            
-        except (PermissionError, OSError) as e:
-            # WinError 32: El proceso no tiene acceso al archivo porque está siendo utilizado por otro proceso
-            is_locked = (getattr(e, 'winerror', 0) == 32) or ("acceso" in str(e) and "otro proceso" in str(e))
-            
-            if is_locked and attempt < max_retries - 1:
-                wait_time = 2.0 * (attempt + 1)
-                print(f"  [WARN] Archivo bloqueado, esperando {wait_time}s... (Intento {attempt + 1}/{max_retries})", file=sys.stderr)
-                time.sleep(wait_time)
-                continue
-            
-            if attempt == max_retries - 1:
-                return {
-                    "ok": False,
-                    "error": f"No se pudo descargar el modelo GGUF tras {max_retries} intentos (Bloqueado): {e}",
-                }
-            # Si no es error de bloqueo, re-lanzar o devolver error
-            return {
-                "ok": False,
-                "error": f"Error descargando modelo: {e}",
-            }
-        except Exception as e:
-             return {
-                "ok": False,
-                "error": f"No se pudo descargar el modelo GGUF: {e}",
-            }
-    
-    return None
+        return self
+
+    def __exit__(self, *exc):
+        self.release()
+        return False
+
+
+def _log(code: str, msg: str) -> None:
+    """Structured log for model management events."""
+    print(f"  [{code}] {msg}", file=sys.stderr)
 
 
 def _safe_ascii(msg: object) -> str:
@@ -174,37 +162,267 @@ def _is_managed_model_path(model_path: Path) -> bool:
     return "models" in str(model_path)
 
 
-def _best_effort_dispose_corrupt_file(model_path: Path) -> tuple[bool, str | None]:
+# ─────────────────────────────────────────────────────────────────────
+# A7 Pillar 3: Strong GGUF validation
+# ─────────────────────────────────────────────────────────────────────
+
+_GGUF_MAGIC = b"GGUF"
+_GGUF_MIN_SIZE_MB = 10  # Minimum viable GGUF file size in MB
+
+
+def _validate_gguf(model_path: Path) -> tuple[bool, str]:
     """
-    Intenta liberar un archivo corrupto (delete/rename) sin romper si esta bloqueado.
-    Retorna (ok, error_message).
+    Validate a GGUF file before loading.
+    Returns (is_valid, status_code).
+    Status codes: OK, NOT_FOUND, TOO_SMALL, BAD_HEADER, READ_ERROR
     """
     if not model_path.exists():
-        return True, None
-
-    last_err: Exception | None = None
-
-    for _ in range(3):
-        try:
-            os.remove(model_path)
-            return True, None
-        except PermissionError as e:
-            last_err = e
-            time.sleep(0.6)
-        except FileNotFoundError:
-            return True, None
-        except OSError as e:
-            last_err = e
-            break
+        return False, "NOT_FOUND"
 
     try:
-        trash_path = model_path.with_name(f"{model_path.name}.corrupt.{int(time.time())}")
-        os.rename(model_path, trash_path)
-        return True, None
-    except Exception as e:
-        last_err = e
+        file_size = model_path.stat().st_size
+    except OSError as e:
+        return False, f"READ_ERROR: {_safe_ascii(e)}"
 
-    return False, _safe_ascii(last_err)
+    min_bytes = _GGUF_MIN_SIZE_MB * 1024 * 1024
+    if file_size < min_bytes:
+        _log("MODEL_VALIDATE_FAIL",
+             f"File too small: {file_size} bytes (min {min_bytes})")
+        return False, "TOO_SMALL"
+
+    try:
+        with open(model_path, "rb") as f:
+            magic = f.read(4)
+    except (OSError, PermissionError) as e:
+        return False, f"READ_ERROR: {_safe_ascii(e)}"
+
+    if magic != _GGUF_MAGIC:
+        _log("MODEL_VALIDATE_FAIL",
+             f"Bad header: expected {_GGUF_MAGIC!r}, got {magic!r}")
+        return False, "BAD_HEADER"
+
+    _log("MODEL_VALIDATE_OK",
+         f"GGUF valid: {file_size // (1024*1024)} MB, header OK")
+    return True, "OK"
+
+
+# ─────────────────────────────────────────────────────────────────────
+# A7 Pillar 4: Quarantine corrupt models
+# ─────────────────────────────────────────────────────────────────────
+
+def _quarantine_model(model_path: Path) -> bool:
+    """
+    Move a corrupt or invalid GGUF to a .bad.<timestamp> file.
+    Returns True if quarantine succeeded (or file was already gone).
+    """
+    if not model_path.exists():
+        return True
+
+    bad_name = f"{model_path.name}.bad.{int(time.time())}"
+    bad_path = model_path.with_name(bad_name)
+
+    try:
+        os.rename(model_path, bad_path)
+        _log("MODEL_QUARANTINE",
+             f"Quarantined: {model_path.name} -> {bad_name}")
+        return True
+    except (PermissionError, OSError) as e:
+        # If rename fails, try delete
+        try:
+            os.remove(model_path)
+            _log("MODEL_QUARANTINE",
+                 f"Deleted corrupt file (rename failed): {model_path.name}")
+            return True
+        except Exception:
+            _log("MODEL_QUARANTINE",
+                 f"FAILED to quarantine {model_path.name}: {_safe_ascii(e)}")
+            return False
+
+
+# ─────────────────────────────────────────────────────────────────────
+# A7 Pillar 2: Atomic download (.part → fsync → rename)
+# ─────────────────────────────────────────────────────────────────────
+
+def _atomic_download(url: str, dest_path: Path) -> None:
+    """
+    Download a file atomically:
+      1. Write to .part file
+      2. flush + fsync
+      3. Rename .part → final (atomic on same filesystem)
+    Raises on any failure; .part file is cleaned up.
+    """
+    import requests
+
+    part_path = dest_path.with_suffix(dest_path.suffix + ".part")
+
+    # Clean up stale .part from a previous interrupted download
+    if part_path.exists():
+        try:
+            os.remove(part_path)
+        except OSError:
+            pass
+
+    chunk_size = 8 * 1024 * 1024
+    try:
+        with requests.get(url, stream=True, timeout=30) as r:
+            r.raise_for_status()
+            total = int(r.headers.get("content-length", "0") or 0)
+            downloaded = 0
+            last_log = time.time()
+            last_pct = -1
+
+            with open(part_path, "wb") as f:
+                for chunk in r.iter_content(chunk_size=chunk_size):
+                    if not chunk:
+                        continue
+                    f.write(chunk)
+                    downloaded += len(chunk)
+
+                    now = time.time()
+                    if total > 0:
+                        pct = int(downloaded * 100 / total)
+                        if pct >= last_pct + 5 or now - last_log >= 5:
+                            print(f"  Descarga: {pct}% ({downloaded // (1024*1024)} MB)")
+                            last_pct = pct
+                            last_log = now
+                    elif now - last_log >= 5:
+                        print(f"  Descarga: {downloaded // (1024*1024)} MB")
+                        last_log = now
+
+                # Flush + fsync before rename
+                f.flush()
+                os.fsync(f.fileno())
+
+        # Verify download size matches Content-Length
+        if total > 0:
+            actual = part_path.stat().st_size
+            if actual != total:
+                raise RuntimeError(
+                    f"Download size mismatch: expected {total}, got {actual}"
+                )
+
+        # Atomic rename: .part → .gguf
+        # On Windows, os.replace handles cross-file replacement atomically
+        os.replace(part_path, dest_path)
+        _log("MODEL_ATOMIC_REPLACE_OK",
+             f"Download complete: {dest_path.name} "
+             f"({dest_path.stat().st_size // (1024*1024)} MB)")
+
+    except BaseException:
+        # Clean up .part on ANY failure (including KeyboardInterrupt)
+        if part_path.exists():
+            try:
+                os.remove(part_path)
+            except OSError:
+                pass
+        raise
+
+
+def _ensure_model(model_path: Path) -> dict | None:
+    """
+    Ensure the GGUF model exists, is valid, and is not corrupt.
+    Uses cross-process locking for download coordination.
+    Returns None on success, or error dict on failure.
+    """
+    # Fast path: model already valid
+    is_valid, status = _validate_gguf(model_path)
+    if is_valid:
+        return None
+
+    # Model needs attention — acquire exclusive lock
+    lock = ModelFileLock(model_path, timeout=180)
+
+    try:
+        with lock:
+            # Re-check after acquiring lock (another process may have fixed it)
+            is_valid, status = _validate_gguf(model_path)
+            if is_valid:
+                _log("MODEL_ENSURE", "Model fixed by another process while waiting")
+                return None
+
+            # Quarantine existing bad file
+            if model_path.exists():
+                _log("MODEL_ENSURE",
+                     f"Model invalid ({status}), quarantining...")
+                _quarantine_model(model_path)
+
+            # Download fresh copy
+            model_path.parent.mkdir(parents=True, exist_ok=True)
+
+            if DEFAULT_MODEL_URL:
+                _log("MODEL_ENSURE", f"Downloading from URL: {DEFAULT_MODEL_URL}")
+                _atomic_download(DEFAULT_MODEL_URL, model_path)
+            else:
+                _log("MODEL_ENSURE",
+                     f"Downloading from HF: {DEFAULT_MODEL_REPO}/{DEFAULT_MODEL_FILE}")
+                try:
+                    from huggingface_hub import hf_hub_download
+
+                    # HF hub downloads to its own cache — copy atomically
+                    cached = hf_hub_download(
+                        repo_id=DEFAULT_MODEL_REPO,
+                        filename=DEFAULT_MODEL_FILE,
+                        local_dir=model_path.parent,
+                        local_dir_use_symlinks=False,
+                    )
+                    cached_path = Path(cached)
+                    if cached_path.resolve() != model_path.resolve():
+                        # Atomic copy via .part
+                        part_path = model_path.with_suffix(
+                            model_path.suffix + ".part")
+                        shutil.copyfile(cached_path, part_path)
+                        os.replace(part_path, model_path)
+                except Exception as e:
+                    return {
+                        "ok": False,
+                        "error": f"HF download failed: {_safe_ascii(e)}",
+                    }
+
+            # Validate the fresh download
+            is_valid, status = _validate_gguf(model_path)
+            if not is_valid:
+                _quarantine_model(model_path)
+                return {
+                    "ok": False,
+                    "error": f"Downloaded model failed validation: {status}",
+                }
+
+            return None
+
+    except TimeoutError as e:
+        return {"ok": False, "error": str(e)}
+    except Exception as e:
+        return {
+            "ok": False,
+            "error": f"Error ensuring model: {_safe_ascii(e)}",
+        }
+
+# Exit code used when model is corrupt and needs external repair.
+# The caller (PCWorker / BitStationApp) should:
+#   1. stop this process,
+#   2. quarantine the .gguf (rename to .bad.*),
+#   3. re-download with _atomic_download,
+#   4. restart this process.
+EXIT_CODE_MODEL_CORRUPT = 66
+
+_QUARANTINE_PENDING_SUFFIX = ".quarantine_pending"
+
+
+def _check_quarantine_pending(model_path: Path) -> None:
+    """
+    If a previous run left a .quarantine_pending marker, process it now.
+    This runs at startup BEFORE loading — file handles are guaranteed free.
+    """
+    marker = model_path.with_suffix(model_path.suffix + _QUARANTINE_PENDING_SUFFIX)
+    if not marker.exists():
+        return
+
+    _log("MODEL_QUARANTINE_PENDING", "Processing quarantine marker from previous run")
+    marker.unlink(missing_ok=True)
+
+    if model_path.exists():
+        _quarantine_model(model_path)
+
 
 def load_model(flash_mode: bool = False):
     """
@@ -221,10 +439,14 @@ def load_model(flash_mode: bool = False):
         raise ImportError(f"diffusers o torch no instalado: {e}")
     
     model_path = _get_default_model_path()
-    if not model_path.exists():
-        download_error = _ensure_model(model_path)
-        if download_error is not None:
-            raise RuntimeError(download_error.get("error", "Error descargando modelo"))
+
+    # A7: Process any pending quarantine from a previous crashed run
+    _check_quarantine_pending(model_path)
+
+    # A7: Validate + ensure model before any load attempt
+    ensure_error = _ensure_model(model_path)
+    if ensure_error is not None:
+        raise RuntimeError(ensure_error.get("error", "Error ensuring model"))
     if not model_path.exists():
         raise FileNotFoundError(
             f"Modelo GGUF no encontrado. Ejecuta setup.ps1 para descargarlo "
@@ -252,92 +474,52 @@ def load_model(flash_mode: bool = False):
         dtype = torch.float32
         print("  ADVERTENCIA: Usando CPU. La generación será muy lenta.", file=sys.stderr)
 
-    # Cargar el transformer desde el archivo GGUF con reintento por corrupción
+    # A7: Load transformer — NO in-process recovery on corruption.
+    # If corrupt, write marker + exit(66) → caller handles repair cycle.
     print("  Cargando transformer...", file=sys.stderr)
     
-    max_retries = 2
-    transformer = None
-    active_model_path = model_path
-    for attempt in range(max_retries + 1):
-        try:
-            # Asegurar que el archivo existe antes de intentar cargar
-            if not active_model_path.exists():
-                print(f"  [INFO] El modelo no existe, descargando...", file=sys.stderr)
-                # Intentar llamar a _ensure_model si el path está en models/ por defecto
-                if _is_managed_model_path(active_model_path):
-                     download_error = _ensure_model(active_model_path)
-                     if download_error is not None:
-                         raise RuntimeError(download_error.get("error", "Error descargando modelo"))
-                elif not active_model_path.exists():
-                     raise FileNotFoundError(f"Modelo no encontrado en: {active_model_path}")
-            
-            # Intentar cargar sin mmap para evitar bloqueo de archivo si falla
-            transformer = ZImageTransformer2DModel.from_single_file(
-                str(active_model_path),
-                quantization_config=GGUFQuantizationConfig(compute_dtype=dtype),
-                torch_dtype=dtype,
-                disable_mmap=True,
-            )
-            # Si carga exitosamente, salir del bucle
-            break
-            
-        except (OSError, ValueError, UnicodeDecodeError, RuntimeError) as e:
-            # Detectar errores típicos de archivo corrupto
-            is_corruption = (
-                "Unable to load weights" in str(e) or
-                "cannot reshape array" in str(e) or
-                "charmap" in str(e) or
-                "invalid load key" in str(e)
-            )
+    try:
+        transformer = ZImageTransformer2DModel.from_single_file(
+            str(model_path),
+            quantization_config=GGUFQuantizationConfig(compute_dtype=dtype),
+            torch_dtype=dtype,
+            disable_mmap=True,  # Avoid file handle retention on Windows
+        )
+    except (OSError, ValueError, UnicodeDecodeError, RuntimeError) as e:
+        is_corruption = (
+            "Unable to load weights" in str(e) or
+            "cannot reshape array" in str(e) or
+            "charmap" in str(e) or
+            "invalid load key" in str(e)
+        )
 
-            if is_corruption and attempt < max_retries:
-                safe_err_msg = _safe_ascii(e)
-                print(
-                    "  [ERROR] Modelo corrupto detectado. Recuperando... "
-                    f"(Detalle: {safe_err_msg[:120]}...)",
-                    file=sys.stderr,
+        if is_corruption:
+            _log("MODEL_LOAD_CORRUPT",
+                 f"Corrupt model detected: {_safe_ascii(str(e)[:200])}")
+            _log("MODEL_LOAD_CORRUPT",
+                 "Writing quarantine marker and exiting with code "
+                 f"{EXIT_CODE_MODEL_CORRUPT}. "
+                 "Caller must: stop process → quarantine .gguf → "
+                 "re-download → restart.")
+
+            # Write quarantine marker (next run will quarantine before load)
+            marker = model_path.with_suffix(
+                model_path.suffix + _QUARANTINE_PENDING_SUFFIX)
+            try:
+                marker.write_text(
+                    f"corrupt_at={datetime.now().isoformat()}\n"
+                    f"error={_safe_ascii(str(e)[:300])}\n",
+                    encoding="utf-8",
                 )
+            except OSError:
+                pass  # Best-effort marker
 
-                if transformer is not None:
-                    del transformer
-                gc.collect()
-                time.sleep(0.3)
+            # Exit the process — file handles will be released by OS
+            raise SystemExit(EXIT_CODE_MODEL_CORRUPT)
 
-                dispose_ok, dispose_err = _best_effort_dispose_corrupt_file(active_model_path)
-
-                if dispose_ok:
-                    if _is_managed_model_path(active_model_path):
-                        download_error = _ensure_model(active_model_path)
-                        if download_error is not None:
-                            raise RuntimeError(download_error.get("error", "Error descargando modelo"))
-                    continue
-
-                # Si el modelo base está bloqueado por otro proceso, usar copia de recuperación.
-                if active_model_path == model_path and _is_managed_model_path(model_path):
-                    fallback_path = model_path.with_name(f"{model_path.stem}.recovery{model_path.suffix}")
-                    print(
-                        "  [WARN] No se pudo liberar el modelo base "
-                        f"({dispose_err}). Usando copia de recuperación: {fallback_path.name}",
-                        file=sys.stderr,
-                    )
-                    _best_effort_dispose_corrupt_file(fallback_path)
-                    download_error = _ensure_model(fallback_path)
-                    if download_error is not None:
-                        raise RuntimeError(
-                            download_error.get("error", "Error descargando modelo de recuperación")
-                        )
-                    active_model_path = fallback_path
-                    print(f"  [INFO] Reintentando carga desde: {active_model_path}", file=sys.stderr)
-                    continue
-
-                print(f"  [ERROR] No se pudo recuperar el archivo corrupto: {dispose_err}", file=sys.stderr)
-                raise e
-            else:
-                print(
-                    f"  [FATAL] Fallo al cargar el modelo después de {attempt} reintentos.",
-                    file=sys.stderr,
-                )
-                raise e
+        # Non-corruption error → propagate normally
+        _log("MODEL_LOAD_FATAL", f"Failed to load model: {_safe_ascii(e)}")
+        raise
     
     # Crear el pipeline
     print("  Inicializando pipeline...", file=sys.stderr)
