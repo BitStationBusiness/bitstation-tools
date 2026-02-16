@@ -13,10 +13,9 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.4 19.4L8 12l7.4-7.4L14 3.2 5.2 12 14 20.8z"/></svg>
       </button>
       <h1 class="title">Z-Image</h1>
-      <div class="workers-pill" title="Workers disponibles">
-        <span class="dot"></span>
-        <span id="workersCount">0</span>
-      </div>
+      <button id="settingsBtn" class="icon-btn" aria-label="Configuración" onclick="openSettings()">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.48.48 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 00-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.63-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1112 8.4a3.6 3.6 0 010 7.2z"/></svg>
+      </button>
     </header>
 
     <main id="content">
@@ -44,12 +43,6 @@
     </main>
 
     <footer class="composer">
-      <div class="sizes" role="group" aria-label="Tamano">
-        <button class="size-btn" data-size="S">S <span>512px</span></button>
-        <button class="size-btn active" data-size="M">M <span>768px</span></button>
-        <button class="size-btn" data-size="B">B <span>1024px</span></button>
-      </div>
-
       <div class="input-wrap">
         <input id="promptInput" type="text" placeholder="Describe la imagen..." autocomplete="off" spellcheck="false">
         <button id="sendBtn" class="send-btn" onclick="submitPrompt()" aria-label="Enviar">
@@ -57,6 +50,63 @@
         </button>
       </div>
     </footer>
+  </div>
+
+  <!-- Settings Bottom Sheet -->
+  <div id="settingsOverlay" class="settings-overlay" onclick="closeSettingsOnBackdrop(event)">
+    <div class="settings-panel">
+      <div class="settings-header">
+        <h2>Configuración</h2>
+        <button class="icon-btn" onclick="closeSettings()" aria-label="Cerrar">
+          <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </div>
+
+      <!-- A) Resolución -->
+      <section class="settings-section">
+        <h3>Resolución</h3>
+        <div class="preset-group" id="presetGroup">
+          <button class="preset-btn" data-preset="S" onclick="selectPreset('S')">S <span>512px</span></button>
+          <button class="preset-btn active" data-preset="M" onclick="selectPreset('M')">M <span>768px</span></button>
+          <button class="preset-btn" data-preset="B" onclick="selectPreset('B')">B <span>1024px</span></button>
+          <button class="preset-btn" data-preset="C" onclick="selectPreset('C')">⚙ <span>Custom</span></button>
+        </div>
+        <div id="customResolution" class="custom-resolution" style="display:none">
+          <div class="custom-inputs">
+            <label>
+              <span>Width</span>
+              <input id="customWidth" type="number" min="256" max="2048" step="64" value="768" oninput="onCustomResChange()">
+            </label>
+            <span class="custom-x">×</span>
+            <label>
+              <span>Height</span>
+              <input id="customHeight" type="number" min="256" max="2048" step="64" value="768" oninput="onCustomResChange()">
+            </label>
+          </div>
+          <p id="customResPreview" class="settings-hint">Resultado: 768 × 768</p>
+        </div>
+      </section>
+
+      <!-- B) Inferencia -->
+      <section class="settings-section">
+        <h3>Steps: <span id="stepsValue">6</span></h3>
+        <input id="stepsSlider" type="range" min="1" max="15" value="6" class="retro-slider" oninput="onStepsChange(this.value)">
+        <p class="settings-hint">Menos steps = más rápido · Más steps = más detalle (más lento)</p>
+      </section>
+
+      <!-- C) Guidance -->
+      <section class="settings-section">
+        <h3>Guidance: <span id="guidanceValue">1.0</span></h3>
+        <div class="guidance-row">
+          <input id="guidanceSlider" type="range" min="0" max="50" value="10" class="retro-slider" oninput="onGuidanceSlider(this.value)">
+          <input id="guidanceInput" type="number" min="0" max="10" step="0.1" value="1.0" class="guidance-number" oninput="onGuidanceInput(this.value)">
+        </div>
+        <p class="settings-hint">0.8–1.2 = natural/rápido · Alto = más literal, puede crear artefactos</p>
+      </section>
+
+      <!-- Restablecer -->
+      <button class="reset-btn" onclick="resetSettings()">Restablecer valores</button>
+    </div>
   </div>
 
   <div id="zoomOverlay" class="zoom-overlay">

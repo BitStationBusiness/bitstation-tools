@@ -566,9 +566,10 @@ def load_model(flash_mode: bool = False):
                 if torch.cuda.is_available():
                     torch.cuda.synchronize()
                     # Reportar uso de memoria después del warmup
-                    vram_used = torch.cuda.memory_allocated(0) / (1024**3)
+                    vram_alloc = torch.cuda.memory_allocated(0) / (1024**3)
+                    vram_reserved = torch.cuda.memory_reserved(0) / (1024**3)
                     vram_total = torch.cuda.get_device_properties(0).total_memory / (1024**3)
-                    print(f"  [FLASH] GPU: {vram_used:.1f}/{vram_total:.1f} GB usados", file=sys.stderr)
+                    print(f"  [VRAM] After warmup: allocated={vram_alloc:.2f} GB, reserved={vram_reserved:.2f} GB, total={vram_total:.1f} GB", file=sys.stderr)
                 warmup_time = time.time() - warmup_start
                 print(f"  [FLASH] Warmup completado en {warmup_time:.2f}s - Listo para generar", file=sys.stderr)
             except Exception as e:
@@ -584,7 +585,10 @@ def load_model(flash_mode: bool = False):
     return pipeline, device
 
 
-def generate_image_with_pipeline(pipeline, device: str, prompt: str, width: int, height: int, output_path: Path) -> dict:
+def generate_image_with_pipeline(
+    pipeline, device: str, prompt: str, width: int, height: int,
+    output_path: Path, steps: int = 9, guidance_scale: float = 0.0,
+) -> dict:
     """
     Genera una imagen usando un pipeline ya cargado.
     Usa torch.inference_mode() para máxima velocidad.
@@ -592,33 +596,41 @@ def generate_image_with_pipeline(pipeline, device: str, prompt: str, width: int,
     try:
         import torch
         
-        # Generar imagen con inference_mode para mejor rendimiento
-        print("  Generando imagen...", file=sys.stderr)
+        print(f"  [INFERENCE] Starting: {width}x{height}, steps={steps}, guidance={guidance_scale}", file=sys.stderr)
         seed = int(datetime.now().timestamp()) % (2**32)
-        generator = torch.Generator(device).manual_seed(seed)
+        gen_device = "cuda" if device == "cuda" else "cpu"
+        generator = torch.Generator(gen_device).manual_seed(seed)
         
+        inf_start = time.time()
         with torch.inference_mode():
             images = pipeline(
                 prompt=prompt,
-                num_inference_steps=9,  # Turbo model optimizado para 9 pasos
-                guidance_scale=0.0,     # Turbo models don't need guidance
+                num_inference_steps=steps,
+                guidance_scale=guidance_scale,
                 height=height,
                 width=width,
                 generator=generator,
             ).images
+        inf_ms = int((time.time() - inf_start) * 1000)
+        print(f"  [INFERENCE] Done in {inf_ms}ms", file=sys.stderr)
         
         if not images:
             return {"ok": False, "error": "No se generó ninguna imagen"}
         
         # Guardar la primera imagen
         image = images[0]
+        enc_start = time.time()
         image.save(str(output_path), format="PNG")
+        enc_ms = int((time.time() - enc_start) * 1000)
+        print(f"  [ENCODE_PNG] Saved in {enc_ms}ms: {output_path.name}", file=sys.stderr)
         
         return {
             "ok": True,
             "image_path": str(output_path),
             "width": width,
-            "height": height
+            "height": height,
+            "inference_ms": inf_ms,
+            "encode_ms": enc_ms,
         }
         
     except Exception as e:
@@ -665,8 +677,11 @@ def run_persistent_mode() -> int:
         
         # Log GPU mode
         if device == "cuda":
-            vram_used = torch.cuda.memory_allocated(0) / (1024**3)
-            print(f"[TURBO] GPU mode enabled. Model pinned in VRAM ({vram_used:.2f} GB used)", file=sys.stderr)
+            vram_alloc = torch.cuda.memory_allocated(0) / (1024**3)
+            vram_reserved = torch.cuda.memory_reserved(0) / (1024**3)
+            vram_total = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+            print(f"[VRAM] After init: allocated={vram_alloc:.2f} GB, reserved={vram_reserved:.2f} GB, total={vram_total:.1f} GB", file=sys.stderr)
+            print(f"[TURBO] GPU mode (CPU-offload). Model loads to GPU on-demand per forward pass.", file=sys.stderr)
             print(f"[TURBO] Ready in {total_init_time:.2f}s", file=sys.stderr)
         else:
             print("[TURBO] CPU Flash mode enabled (Slow)", file=sys.stderr)
@@ -721,15 +736,28 @@ def run_persistent_mode() -> int:
                     sys.stdout.flush()
                     continue
                 
-                # Obtener tamaño (default: M)
-                size = job.get("size", "M").upper()
-                if size not in SIZE_MAP:
-                    error_result = {"ok": False, "error": f"Tamaño inválido: '{size}'. Valores válidos: S, M, B"}
-                    print(json.dumps(error_result, ensure_ascii=False))
-                    sys.stdout.flush()
-                    continue
+                # --- Resolve width / height ---
+                # Explicit width/height from job take priority over SIZE_MAP
+                raw_w = job.get("width")
+                raw_h = job.get("height")
+                if raw_w is not None and raw_h is not None:
+                    try:
+                        width = int(raw_w)
+                        height = int(raw_h)
+                    except (ValueError, TypeError):
+                        width, height = SIZE_MAP["M"]
+                else:
+                    size = job.get("size", "M").upper()
+                    if size not in SIZE_MAP:
+                        error_result = {"ok": False, "error": f"Tamaño inválido: '{size}'. Valores válidos: S, M, B"}
+                        print(json.dumps(error_result, ensure_ascii=False))
+                        sys.stdout.flush()
+                        continue
+                    width, height = SIZE_MAP[size]
                 
-                width, height = SIZE_MAP[size]
+                # Resolve steps / guidance_scale
+                steps = int(job.get("steps", 9))
+                guidance = float(job.get("guidance_scale", 0.0))
                 
                 # Generar nombre único para la imagen
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -743,11 +771,18 @@ def run_persistent_mode() -> int:
                 
                 job_count += 1
                 job_id = job.get("id", job_count)
+                
+                # Forensic logging
+                print(f"[JOB_DECODE] id={job_id} raw_payload_keys={list(job.keys())}", file=sys.stderr)
+                print(f"[EFFECTIVE_PARAMS] width={width} height={height} steps={steps} guidance={guidance}", file=sys.stderr)
                 print(f"Procesando job {job_id}: {prompt[:50]}...", file=sys.stderr)
                 
                 # Generar imagen usando pipeline cargado
                 gen_start = time.time()
-                result = generate_image_with_pipeline(pipeline, device, prompt, width, height, image_output_path)
+                result = generate_image_with_pipeline(
+                    pipeline, device, prompt, width, height, image_output_path,
+                    steps=steps, guidance_scale=guidance,
+                )
                 gen_time = time.time() - gen_start
                 
                 # Añadir tiempo de generación al resultado
@@ -824,12 +859,20 @@ def main() -> int:
     if not isinstance(prompt, str) or not prompt.strip():
         fail("El campo 'prompt' debe ser un string no vacío", out_path)
 
-    # Obtener tamaño (default: M)
-    size = data.get("size", "M").upper()
-    if size not in SIZE_MAP:
-        fail(f"Tamaño inválido: '{size}'. Valores válidos: S, M, B", out_path)
-
-    width, height = SIZE_MAP[size]
+    # Resolve width / height: explicit values take priority over SIZE_MAP
+    raw_w = data.get("width")
+    raw_h = data.get("height")
+    if raw_w is not None and raw_h is not None:
+        try:
+            width = int(raw_w)
+            height = int(raw_h)
+        except (ValueError, TypeError):
+            width, height = SIZE_MAP["M"]
+    else:
+        size = data.get("size", "M").upper()
+        if size not in SIZE_MAP:
+            fail(f"Tamaño inválido: '{size}'. Valores válidos: S, M, B", out_path)
+        width, height = SIZE_MAP[size]
 
     # Generar nombre único para la imagen
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

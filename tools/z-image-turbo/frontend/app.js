@@ -6,23 +6,175 @@
   const emptyState = document.getElementById('emptyState');
   const input = document.getElementById('promptInput');
   const sendBtn = document.getElementById('sendBtn');
-  const workersCount = document.getElementById('workersCount');
-  const sizeButtons = Array.from(document.querySelectorAll('.size-btn'));
   const chips = Array.from(document.querySelectorAll('.chip'));
 
   const zoomOverlay = document.getElementById('zoomOverlay');
   const zoomImg = document.getElementById('zoomImg');
 
-  let selectedSize = 'M';
+  // Settings elements
+  const settingsOverlay = document.getElementById('settingsOverlay');
+  const presetBtns = Array.from(document.querySelectorAll('.preset-btn'));
+  const customResDiv = document.getElementById('customResolution');
+  const customWidthInput = document.getElementById('customWidth');
+  const customHeightInput = document.getElementById('customHeight');
+  const customResPreview = document.getElementById('customResPreview');
+  const stepsSlider = document.getElementById('stepsSlider');
+  const stepsValue = document.getElementById('stepsValue');
+  const guidanceSlider = document.getElementById('guidanceSlider');
+  const guidanceInput = document.getElementById('guidanceInput');
+  const guidanceValue = document.getElementById('guidanceValue');
+
   let generating = false;
   let currentJobId = null;
   let pollTimer = null;
 
+  // ─── Settings state ───────────────────────────────────────────────
+  const STORAGE_KEY = 'zimage-settings';
   const SIZE_MAP = {
     S: { width: 512, height: 512 },
     M: { width: 768, height: 768 },
     B: { width: 1024, height: 1024 },
   };
+  const DEFAULTS = {
+    preset: 'M',
+    customWidth: 768,
+    customHeight: 768,
+    steps: 6,
+    guidance: 1.0,
+  };
+
+  let settings = loadSettings();
+
+  function loadSettings() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const s = JSON.parse(raw);
+        return {
+          preset: ['S', 'M', 'B', 'C'].includes(s.preset) ? s.preset : DEFAULTS.preset,
+          customWidth: roundTo64(clamp(parseInt(s.customWidth) || DEFAULTS.customWidth, 256, 2048)),
+          customHeight: roundTo64(clamp(parseInt(s.customHeight) || DEFAULTS.customHeight, 256, 2048)),
+          steps: clamp(parseInt(s.steps) || DEFAULTS.steps, 1, 15),
+          guidance: clampF(parseFloat(s.guidance), 0, 10) || DEFAULTS.guidance,
+        };
+      }
+    } catch (_) { }
+    return { ...DEFAULTS };
+  }
+
+  function saveSettings() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    } catch (_) { }
+  }
+
+  function getResolution() {
+    if (settings.preset === 'C') {
+      return { width: settings.customWidth, height: settings.customHeight };
+    }
+    return SIZE_MAP[settings.preset] || SIZE_MAP.M;
+  }
+
+  function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+  function clampF(v, min, max) { return isNaN(v) ? null : Math.max(min, Math.min(max, v)); }
+  function roundTo64(v) { return Math.round(v / 64) * 64 || 256; }
+
+  // ─── Settings UI ──────────────────────────────────────────────────
+
+  window.openSettings = function () {
+    syncSettingsUI();
+    settingsOverlay.classList.add('active');
+  };
+
+  window.closeSettings = function () {
+    settingsOverlay.classList.remove('active');
+  };
+
+  window.closeSettingsOnBackdrop = function (e) {
+    if (e.target === settingsOverlay) closeSettings();
+  };
+
+  function syncSettingsUI() {
+    // Presets
+    presetBtns.forEach(b => {
+      b.classList.toggle('active', b.dataset.preset === settings.preset);
+    });
+    customResDiv.style.display = settings.preset === 'C' ? 'block' : 'none';
+    customWidthInput.value = settings.customWidth;
+    customHeightInput.value = settings.customHeight;
+    updateCustomPreview();
+
+    // Steps
+    stepsSlider.value = settings.steps;
+    stepsValue.textContent = settings.steps;
+
+    // Guidance
+    guidanceSlider.value = Math.round(settings.guidance * 10);
+    guidanceInput.value = settings.guidance.toFixed(1);
+    guidanceValue.textContent = settings.guidance.toFixed(1);
+  }
+
+  window.selectPreset = function (preset) {
+    settings.preset = preset;
+    presetBtns.forEach(b => {
+      b.classList.toggle('active', b.dataset.preset === preset);
+    });
+    customResDiv.style.display = preset === 'C' ? 'block' : 'none';
+    saveSettings();
+  };
+
+  window.onCustomResChange = function () {
+    let w = parseInt(customWidthInput.value) || 768;
+    let h = parseInt(customHeightInput.value) || 768;
+    w = roundTo64(clamp(w, 256, 2048));
+    h = roundTo64(clamp(h, 256, 2048));
+    settings.customWidth = w;
+    settings.customHeight = h;
+    updateCustomPreview();
+    saveSettings();
+  };
+
+  function updateCustomPreview() {
+    if (customResPreview) {
+      customResPreview.textContent = `Resultado: ${settings.customWidth} × ${settings.customHeight}`;
+    }
+  }
+
+  window.onStepsChange = function (val) {
+    settings.steps = clamp(parseInt(val) || 6, 1, 15);
+    stepsValue.textContent = settings.steps;
+    saveSettings();
+  };
+
+  window.onGuidanceSlider = function (val) {
+    const g = clamp(parseInt(val) || 0, 0, 50) / 10;
+    settings.guidance = parseFloat(g.toFixed(1));
+    guidanceInput.value = settings.guidance.toFixed(1);
+    guidanceValue.textContent = settings.guidance.toFixed(1);
+    saveSettings();
+  };
+
+  window.onGuidanceInput = function (val) {
+    let g = parseFloat(val);
+    if (isNaN(g)) return;
+    if (g < 0) g = 0;
+    if (g > 10) {
+      guidanceInput.value = '10.0';
+      g = 10;
+    }
+    settings.guidance = parseFloat(g.toFixed(1));
+    guidanceSlider.value = Math.min(Math.round(settings.guidance * 10), 50);
+    guidanceValue.textContent = settings.guidance.toFixed(1);
+    saveSettings();
+  };
+
+  window.resetSettings = function () {
+    settings = { ...DEFAULTS };
+    saveSettings();
+    syncSettingsUI();
+  };
+
+  // ─── Init ─────────────────────────────────────────────────────────
 
   document.addEventListener('DOMContentLoaded', () => {
     input.addEventListener('keydown', (e) => {
@@ -30,14 +182,6 @@
         e.preventDefault();
         submitPrompt();
       }
-    });
-
-    sizeButtons.forEach((btn) => {
-      btn.addEventListener('click', () => {
-        if (generating) return;
-        selectedSize = btn.dataset.size || 'M';
-        updateSizeSelection();
-      });
     });
 
     chips.forEach((chip) => {
@@ -49,7 +193,6 @@
     });
 
     initBridgeInfo();
-    updateSizeSelection();
     updateEmptyState();
   });
 
@@ -57,10 +200,6 @@
     try {
       await ToolBridge.handshake();
     } catch (_) { }
-
-    if (workersCount) {
-      workersCount.textContent = '0';
-    }
   }
 
   function decodeHtml(value) {
@@ -69,23 +208,22 @@
     return textarea.value;
   }
 
-  function updateSizeSelection() {
-    sizeButtons.forEach((btn) => {
-      const isActive = (btn.dataset.size || '') === selectedSize;
-      btn.classList.toggle('active', isActive);
-    });
-  }
-
   function updateEmptyState() {
     if (!emptyState) return;
     emptyState.style.display = chat.childElementCount === 0 ? 'flex' : 'none';
   }
 
+  // ─── Job submission ───────────────────────────────────────────────
+
   window.submitPrompt = async function () {
     const prompt = input.value.trim();
     if (!prompt || generating) return;
 
-    const size = SIZE_MAP[selectedSize] || SIZE_MAP.M;
+    const res = getResolution();
+    const steps = settings.steps;
+    const guidance = settings.guidance;
+
+    console.log(`[UI] Using settings: ${res.width}x${res.height}, steps=${steps}, guidance=${guidance}`);
 
     addUserMessage(prompt);
     input.value = '';
@@ -97,10 +235,10 @@
     try {
       const result = await ToolBridge.submitJob({
         prompt: prompt,
-        width: size.width,
-        height: size.height,
-        steps: 4,
-        guidance_scale: 1.0,
+        width: res.width,
+        height: res.height,
+        steps: steps,
+        guidance_scale: guidance,
       });
 
       const jobId = result.job_id || result.jobId;
@@ -202,6 +340,8 @@
     currentJobId = null;
     sendBtn.disabled = false;
   }
+
+  // ─── Chat messages ────────────────────────────────────────────────
 
   function addUserMessage(text) {
     const el = document.createElement('div');
@@ -309,6 +449,8 @@
     scrollToBottom();
     return el;
   }
+
+  // ─── Image actions ────────────────────────────────────────────────
 
   async function copyImage(src) {
     if (ToolBridge.isShellMode()) {
@@ -419,6 +561,8 @@
     }, 1400);
   }
 
+  // ─── Navigation / Zoom ────────────────────────────────────────────
+
   window.goBack = async function () {
     if (ToolBridge.isShellMode()) {
       try {
@@ -451,8 +595,12 @@
   });
 
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && zoomOverlay.classList.contains('active')) {
-      closeZoom();
+    if (e.key === 'Escape') {
+      if (settingsOverlay.classList.contains('active')) {
+        closeSettings();
+      } else if (zoomOverlay.classList.contains('active')) {
+        closeZoom();
+      }
     }
   });
 
