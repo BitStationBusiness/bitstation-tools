@@ -237,7 +237,19 @@
     try {
       const res = await ToolBridge.call('get_pending_result', {});
       if (res && res.has_result) {
+        // Job completed while user was away — show result only if not already in chat
+        const lastImg = chatMessages.filter(m => m.type === 'image').pop();
+        const output = (res.result.output || res.result.result || {});
+        const newSrc = output.file_url || output.image_url || output.image_base64 || '';
+        if (lastImg && lastImg.src === newSrc) return; // already in chat
         handleResult(res.result);
+      } else if (res && res.active_job) {
+        // Job still running — resume visual state and polling
+        generating = true;
+        currentJobId = res.active_job;
+        updateSendBtnState();
+        const spinnerEl = addSpinner('Generando...');
+        startPolling(res.active_job, spinnerEl);
       }
     } catch (e) { /* ignore */ }
   }
@@ -308,12 +320,17 @@
     }, 1000);
   }
 
+  let lastHandledJobSrc = null;
+
   function handleResult(status) {
     const output = status.output || status.result || {};
     let imageData = output.file_url || output.image_url || output.image_base64 || output.imageBase64 || output.image;
     if (!imageData && typeof output === 'string' && output.length > 100) imageData = output;
     if (!imageData) { addErrorMessage('Termino el job pero no llego imagen.'); return; }
     const src = imageData.startsWith('data:') || imageData.startsWith('http') ? imageData : 'data:image/png;base64,' + imageData;
+    // Guard against duplicate results from concurrent polls
+    if (src === lastHandledJobSrc) return;
+    lastHandledJobSrc = src;
     addImageMessage(src);
   }
 
@@ -433,13 +450,12 @@
     return button;
   }
 
-  function addSpinner() {
+  function addSpinner(text) {
     const el = document.createElement('div');
     el.className = 'spinner-wrap';
     el.innerHTML = [
       '<div class="loading-dots"><span></span><span></span><span></span></div>',
-      '<span class="spinner-text">Enviando...</span>',
-      '<button class="cancel-btn" onclick="cancelJob()">Cancelar</button>',
+      '<span class="spinner-text">' + (text || 'Enviando...') + '</span>',
     ].join('');
     chat.appendChild(el);
     updateEmptyState();

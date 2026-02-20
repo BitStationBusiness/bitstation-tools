@@ -2,7 +2,7 @@
   "manifest_version": "1.0",
   "tool_id": "bm-generator",
   "tool_version": "1.0.0",
-  "created_at": "2026-02-20T16:02:39.689852+00:00",
+  "created_at": "2026-02-20T17:29:22.358737+00:00",
   "files": [
     {
       "path": ".gitignore",
@@ -19,22 +19,29 @@
     },
     {
       "path": "backend/cli.py",
-      "sha256": "2bffe003652cc89630f183c3046b84e347adef52cda3fdea50a6351f8a5ac879",
-      "size": 8745,
+      "sha256": "8398ac2f953f302058c1384a863f7192be477a13381adad0e7f9bd09ec71075c",
+      "size": 5621,
       "url": "https://hq.bitstation.local/api/v1/tools/bm-generator/1.0.0/files/backend/cli.py",
       "executable": true
     },
     {
+      "path": "backend/core/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "url": "https://hq.bitstation.local/api/v1/tools/bm-generator/1.0.0/files/backend/core/__init__.py",
+      "executable": true
+    },
+    {
       "path": "backend/core/builder.py",
-      "sha256": "e62a8c2b0ab4170d8742197dd9c49ce2ef9e24218c4828afa912d1609581595c",
-      "size": 5813,
+      "sha256": "7012261c8e9cba9152e03cf899dd07db0099b1ce6e74523127f181d58e66a8a3",
+      "size": 5228,
       "url": "https://hq.bitstation.local/api/v1/tools/bm-generator/1.0.0/files/backend/core/builder.py",
       "executable": true
     },
     {
       "path": "backend/core/demucs_handler.py",
-      "sha256": "a42914ec375216a763b2bc0eb374dead736261878bffc6261b136179120b9159",
-      "size": 5770,
+      "sha256": "b2301df3cc7898ba1bed351a5685ee0157337e39eff266b61a4b020bb9dd10a6",
+      "size": 4551,
       "url": "https://hq.bitstation.local/api/v1/tools/bm-generator/1.0.0/files/backend/core/demucs_handler.py",
       "executable": true
     },
@@ -54,8 +61,8 @@
     },
     {
       "path": "backend/requirements.txt",
-      "sha256": "913a7dd88a6eee04b9d8845e11c95e6a7b031ac5c39fe533f23fe65baab4c3be",
-      "size": 51,
+      "sha256": "6c563c0f79cc3e49f629e467bfac2a0df4cc169b3d0509566cd822d8f4e21381",
+      "size": 56,
       "url": "https://hq.bitstation.local/api/v1/tools/bm-generator/1.0.0/files/backend/requirements.txt"
     },
     {
@@ -67,8 +74,8 @@
     },
     {
       "path": "frontend/app.js",
-      "sha256": "b5b2d44471f578854d50534f53c0505271adb7bbf5b78da74da57cc47ef0d23b",
-      "size": 10141,
+      "sha256": "dd06a7573360538fd15eea974946a63e5c91cf5bb5d6d23da9b84a80efe18820",
+      "size": 11070,
       "url": "https://hq.bitstation.local/api/v1/tools/bm-generator/1.0.0/files/frontend/app.js"
     },
     {
@@ -79,8 +86,8 @@
     },
     {
       "path": "frontend/index.html",
-      "sha256": "ce77a311da4a5361c2e50d561786eddde66da2dfc859e152f24298c63979fe41",
-      "size": 3714,
+      "sha256": "cd090b61171bcf86aa480cd630aeb4c7be55bac0225f5213fbf75f49505226cb",
+      "size": 3713,
       "url": "https://hq.bitstation.local/api/v1/tools/bm-generator/1.0.0/files/frontend/index.html"
     },
     {
@@ -97,8 +104,8 @@
     },
     {
       "path": "manifest.json",
-      "sha256": "2b0368a4776894007c5632682885fbbcd38b925d8a72dca5cffdbaa1c2f32e54",
-      "size": 4830,
+      "sha256": "7095a306b05ac706a6094348a0bcf5e67f745c3b946e7dd823f9212d91ead6c2",
+      "size": 5863,
       "url": "https://hq.bitstation.local/api/v1/tools/bm-generator/1.0.0/files/manifest.json"
     },
     {
@@ -115,9 +122,16 @@
     },
     {
       "path": "runner/run.ps1",
-      "sha256": "d1713b33feb83d70905480b25d10beec8ea544d60ec43244e7c0551b5abb420d",
-      "size": 1623,
+      "sha256": "e24c964b6f4e1332c5f0bc889edf56a940e6c1aeec8fee4197dd392662a25eda",
+      "size": 1395,
       "url": "https://hq.bitstation.local/api/v1/tools/bm-generator/1.0.0/files/runner/run.ps1",
+      "executable": true
+    },
+    {
+      "path": "runner/setup.ps1",
+      "sha256": "bc34cc1e1f890cbb403f557b8f78b1cec3a24c43c5b17f5876518e4ce99e66c8",
+      "size": 1490,
+      "url": "https://hq.bitstation.local/api/v1/tools/bm-generator/1.0.0/files/runner/setup.ps1",
       "executable": true
     },
     {
@@ -149,5 +163,5 @@
       "cache/**/*.bin"
     ]
   },
-  "manifest_hash": "5739ad024a1927cf1e798177aafba6bd3ffd7141d3256b2157c6792ec1e83384"
+  "manifest_hash": "6cc9912a0e3ac6b13049e4732dc2dca78c8026122febe85867180075297d3d3c"
 }

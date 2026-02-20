@@ -294,15 +294,6 @@ body {
   color: #d9dce2;
 }
 
-.cancel-btn {
-  border: 0;
-  background: #5b2b31;
-  color: #ffd9de;
-  border-radius: 999px;
-  padding: 6px 10px;
-  cursor: pointer;
-}
-
 /* ─── Composer (footer) ──────────────────────────────────────────── */
 
 .composer {
