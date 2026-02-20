@@ -2,7 +2,7 @@
   "manifest_version": "1.0",
   "tool_id": "bm-generator",
   "tool_version": "1.0.0",
-  "created_at": "2026-02-20T17:29:22.358737+00:00",
+  "created_at": "2026-02-20T17:55:00.954838+00:00",
   "files": [
     {
       "path": ".gitignore",
@@ -104,8 +104,8 @@
     },
     {
       "path": "manifest.json",
-      "sha256": "7095a306b05ac706a6094348a0bcf5e67f745c3b946e7dd823f9212d91ead6c2",
-      "size": 5863,
+      "sha256": "7e9979d6b36cf58e5a1577d2cfdc43d33acafd1827e1628fdce44d3fb2656b47",
+      "size": 6440,
       "url": "https://hq.bitstation.local/api/v1/tools/bm-generator/1.0.0/files/manifest.json"
     },
     {
@@ -163,5 +163,5 @@
       "cache/**/*.bin"
     ]
   },
-  "manifest_hash": "6cc9912a0e3ac6b13049e4732dc2dca78c8026122febe85867180075297d3d3c"
+  "manifest_hash": "355dd87189bba850f7a56d45e16bc67b8508b2279a09bb4a2c21f65746b0c3d8"
 }

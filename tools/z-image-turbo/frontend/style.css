@@ -679,6 +679,17 @@ body {
   border-color: rgba(255, 255, 255, 0.2);
 }
 
+.reset-btn.danger {
+  margin-top: 8px;
+  border-color: rgba(220, 50, 50, 0.3);
+  color: #e05555;
+}
+
+.reset-btn.danger:hover {
+  background: rgba(220, 50, 50, 0.15);
+  border-color: rgba(220, 50, 50, 0.5);
+}
+
 /* ─── Zoom overlay ───────────────────────────────────────────────── */
 
 .zoom-overlay {

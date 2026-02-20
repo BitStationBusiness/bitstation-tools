@@ -139,6 +139,16 @@
   };
   window.resetSettings = function () { settings = { ...DEFAULTS }; saveSettings(); syncSettingsUI(); };
 
+  window.clearChatHistory = async function () {
+    if (!confirm('¿Borrar todo el historial del chat?')) return;
+    chatMessages = [];
+    chat.innerHTML = '';
+    lastHandledJobSrc = null;
+    await saveChatState();
+    updateEmptyState();
+    closeSettings();
+  };
+
   // --- Send button state ---
 
   function updateSendBtnState() {
@@ -556,10 +566,13 @@
     }
   });
 
-  // Ensure mouse wheel scrolling works in WebView2
-  chat.addEventListener('wheel', (e) => {
-    chat.scrollTop += e.deltaY;
-  }, { passive: true });
+  // Force mouse wheel scrolling in WebView2 (intercept at document level)
+  document.addEventListener('wheel', (e) => {
+    if (chat.contains(e.target) || e.target === chat) {
+      e.preventDefault();
+      chat.scrollTop += e.deltaY;
+    }
+  }, { passive: false });
 
   function scrollToBottom() { requestAnimationFrame(() => { chat.scrollTop = chat.scrollHeight; }); }
   function removeEl(el) { if (el && el.parentNode) el.parentNode.removeChild(el); }
