@@ -1,55 +1,71 @@
 {
-    "manifest_version": "1.0",
-    "tool_id": "hello-demo",
-    "tool_version": "1.0.0",
-    "created_at": "2026-02-08T14:15:00.000000+00:00",
-    "api_contract": "toolbridge/1",
-    "frontend": {
-        "type": "web",
-        "entry": "index.html",
-        "archive": "frontend.zip",
-        "sha256": "placeholder_will_be_calculated_on_build"
+  "manifest_version": "1.0",
+  "tool_id": "hello-demo",
+  "tool_version": "1.0.0",
+  "created_at": "2026-02-20T14:39:15.641483+00:00",
+  "files": [
+    {
+      "path": "frontend.zip",
+      "sha256": "890685d19cb7917ef548789fec98c4b1b690020fac727b75ab17c43c4908760f",
+      "size": 5422,
+      "url": "https://hq.bitstation.local/api/v1/tools/hello-demo/1.0.0/files/frontend.zip"
     },
-    "capabilities": [],
-    "files": [
-        {
-            "path": "tool.json",
-            "sha256": "placeholder",
-            "size": 0,
-            "url": "https://hq.bitstation.local/api/v1/tools/hello-demo/1.0.0/files/tool.json"
-        },
-        {
-            "path": "runner/run.ps1",
-            "sha256": "placeholder",
-            "size": 0,
-            "url": "https://hq.bitstation.local/api/v1/tools/hello-demo/1.0.0/files/runner/run.ps1",
-            "executable": true
-        },
-        {
-            "path": "frontend/index.html",
-            "sha256": "placeholder",
-            "size": 0,
-            "url": "https://hq.bitstation.local/api/v1/tools/hello-demo/1.0.0/files/frontend/index.html"
-        },
-        {
-            "path": "frontend/bridge.js",
-            "sha256": "placeholder",
-            "size": 0,
-            "url": "https://hq.bitstation.local/api/v1/tools/hello-demo/1.0.0/files/frontend/bridge.js"
-        },
-        {
-            "path": "frontend/style.css",
-            "sha256": "placeholder",
-            "size": 0,
-            "url": "https://hq.bitstation.local/api/v1/tools/hello-demo/1.0.0/files/frontend/style.css"
-        }
-    ],
-    "delete_policy": "safe",
-    "ignore_globs": [
-        "venv/**",
-        ".venv/**",
-        "cache/**",
-        "*.log"
-    ],
-    "manifest_hash": "placeholder_will_be_calculated_on_build"
+    {
+      "path": "frontend/bridge.js",
+      "sha256": "92647acd1fecd047baf5deb72f6ffcafa8cee081c66a4b51f003d597b411d065",
+      "size": 8322,
+      "url": "https://hq.bitstation.local/api/v1/tools/hello-demo/1.0.0/files/frontend/bridge.js"
+    },
+    {
+      "path": "frontend/index.html",
+      "sha256": "c936124e969e8b05f3349fee064cec45d60418e224c16cb8868dfbc3348cc901",
+      "size": 4645,
+      "url": "https://hq.bitstation.local/api/v1/tools/hello-demo/1.0.0/files/frontend/index.html"
+    },
+    {
+      "path": "frontend/style.css",
+      "sha256": "05b1132d354661660d19f125f5c00b02cf2c64872c997cf6e03df7230f017169",
+      "size": 5254,
+      "url": "https://hq.bitstation.local/api/v1/tools/hello-demo/1.0.0/files/frontend/style.css"
+    },
+    {
+      "path": "manifest.json",
+      "sha256": "21509d85c77d19cdcc305fb73ab7cc930855c5059883c56d5d41182e973df263",
+      "size": 1794,
+      "url": "https://hq.bitstation.local/api/v1/tools/hello-demo/1.0.0/files/manifest.json"
+    },
+    {
+      "path": "requirements.lock.txt",
+      "sha256": "cabb92e780bbb6c07e734bbacdf9698cf5e170919dbedb8f00a314f615643578",
+      "size": 34,
+      "url": "https://hq.bitstation.local/api/v1/tools/hello-demo/1.0.0/files/requirements.lock.txt"
+    },
+    {
+      "path": "runner/run.ps1",
+      "sha256": "7a3a3950892e772af1e3ed6df841473d7c8af245059c963806f5615457aeced2",
+      "size": 1210,
+      "url": "https://hq.bitstation.local/api/v1/tools/hello-demo/1.0.0/files/runner/run.ps1",
+      "executable": true
+    },
+    {
+      "path": "tool.json",
+      "sha256": "fc0544944d4537abcd792f6ca3e65c438467ebd1049def6d84cad7ade9eda1a4",
+      "size": 1074,
+      "url": "https://hq.bitstation.local/api/v1/tools/hello-demo/1.0.0/files/tool.json"
+    }
+  ],
+  "delete_policy": "safe",
+  "ignore_globs": [
+    "venv/**",
+    ".venv/**",
+    "cache/**",
+    "user_data/**",
+    "logs/**",
+    "*.log",
+    ".env",
+    "config.local.*",
+    "__pycache__/**",
+    "*.pyc"
+  ],
+  "manifest_hash": "1e9cdc57f9910ebdd9294e399a31ec1f8b6c375a0633bd11f0fb8b1ebe0c76f6"
 }

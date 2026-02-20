@@ -79,7 +79,7 @@ class ModelFileLock:
     def acquire_exclusive(self) -> bool:
         """Acquire an exclusive lock. Returns True if acquired, False on timeout."""
         self._lock_path.parent.mkdir(parents=True, exist_ok=True)
-        self._fd = open(self._lock_path, "w")
+        self._fd = open(self._lock_path, "w", encoding="utf-8")
 
         deadline = time.time() + self._timeout
         poll_interval = 0.5
@@ -159,7 +159,7 @@ def _safe_ascii(msg: object) -> str:
 
 def _is_managed_model_path(model_path: Path) -> bool:
     """Indica si el modelo vive en la carpeta local administrada por la tool."""
-    return "models" in str(model_path)
+    return "models" in [p.lower() for p in model_path.resolve().parts]
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -365,12 +365,25 @@ def _ensure_model(model_path: Path) -> dict | None:
                         local_dir=model_path.parent,
                         local_dir_use_symlinks=False,
                     )
-                    cached_path = Path(cached)
-                    if cached_path.resolve() != model_path.resolve():
-                        # Atomic copy via .part
+                    cached_path = Path(cached).resolve()
+                    resolved_model = model_path.resolve()
+                    paths_differ = (
+                        str(cached_path).lower() != str(resolved_model).lower()
+                        if sys.platform == "win32"
+                        else cached_path != resolved_model
+                    )
+                    if paths_differ:
                         part_path = model_path.with_suffix(
                             model_path.suffix + ".part")
-                        shutil.copyfile(cached_path, part_path)
+                        chunk_sz = 8 * 1024 * 1024
+                        with open(cached_path, "rb") as src, open(part_path, "wb") as dst:
+                            while True:
+                                buf = src.read(chunk_sz)
+                                if not buf:
+                                    break
+                                dst.write(buf)
+                            dst.flush()
+                            os.fsync(dst.fileno())
                         os.replace(part_path, model_path)
                 except Exception as e:
                     return {
@@ -884,9 +897,10 @@ def main() -> int:
     downloads = get_downloads_folder()
     image_output_path = downloads / filename
 
+    size_label = data.get("size", "custom") if raw_w is not None else size
     print(f"Generando imagen...")
     print(f"  Prompt: {prompt}")
-    print(f"  Tamaño: {size} ({width}x{height})")
+    print(f"  Tamaño: {size_label} ({width}x{height})")
     print(f"  Output: {image_output_path}")
 
     # Generar imagen

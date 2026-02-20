@@ -1,52 +1,76 @@
 {
   "manifest_version": "1.0",
   "tool_id": "add",
-  "tool_version": "0.1.4",
-  "created_at": "2026-02-07T12:06:46.281759+00:00",
+  "tool_version": "0.2.0",
+  "created_at": "2026-02-20T14:39:12.995146+00:00",
   "files": [
     {
       "path": "README.md",
       "sha256": "4023f1108a2253c9742fb7fe18793969edb7002310f0bba71b7cd90e4a3159c8",
       "size": 255,
-      "url": "https://hq.bitstation.local/api/v1/tools/add/0.1.4/files/README.md"
+      "url": "https://hq.bitstation.local/api/v1/tools/add/0.2.0/files/README.md"
+    },
+    {
+      "path": "frontend/app.js",
+      "sha256": "52c9299649a4525c770652d653654251721a5f4125ceb1b6b4a7c8e34b7f2b19",
+      "size": 5263,
+      "url": "https://hq.bitstation.local/api/v1/tools/add/0.2.0/files/frontend/app.js"
+    },
+    {
+      "path": "frontend/bridge.js",
+      "sha256": "a12f6704780b41fc95b408564e5f937f975f6b2968e258b05581d1c8c2cdf50d",
+      "size": 3545,
+      "url": "https://hq.bitstation.local/api/v1/tools/add/0.2.0/files/frontend/bridge.js"
+    },
+    {
+      "path": "frontend/index.html",
+      "sha256": "b742f0a82f34914256625b9daacf3e3774562074dd56ed9ee46fdc314d853f0e",
+      "size": 1542,
+      "url": "https://hq.bitstation.local/api/v1/tools/add/0.2.0/files/frontend/index.html"
+    },
+    {
+      "path": "frontend/style.css",
+      "sha256": "b6cb4de6779a8e5b5930979058ab54dfa0e4f3200289a9d4efa4fed4dd5b13b4",
+      "size": 5025,
+      "url": "https://hq.bitstation.local/api/v1/tools/add/0.2.0/files/frontend/style.css"
     },
     {
       "path": "icon.png",
       "sha256": "1f24cea6ec843b4301257ec961143ccc8b2c458da4dd63f0d0cb4695f976b67d",
       "size": 11048,
-      "url": "https://hq.bitstation.local/api/v1/tools/add/0.1.4/files/icon.png"
+      "url": "https://hq.bitstation.local/api/v1/tools/add/0.2.0/files/icon.png"
     },
     {
       "path": "manifest.json",
-      "sha256": "92c4c220b51eccbb04a58221c2bb1ce5e5fb751666550f18f6e9dcc6b7923673",
+      "sha256": "2cdd866a8d5c9fe7bdbce71f23295ae52c2ee968a0a13b25d83746e310b62edc",
       "size": 2187,
-      "url": "https://hq.bitstation.local/api/v1/tools/add/0.1.4/files/manifest.json"
+      "url": "https://hq.bitstation.local/api/v1/tools/add/0.2.0/files/manifest.json"
     },
     {
       "path": "requirements.lock.txt",
-      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "size": 0,
-      "url": "https://hq.bitstation.local/api/v1/tools/add/0.1.4/files/requirements.lock.txt"
+      "sha256": "f13f571650092f691d8acc3b86666a09193922cf122ec693749656d6711a8d37",
+      "size": 42,
+      "url": "https://hq.bitstation.local/api/v1/tools/add/0.2.0/files/requirements.lock.txt"
     },
     {
       "path": "runner/run.ps1",
       "sha256": "e4f89a0483f49a17997760a740f7935f1282d2d7a808445c1ad7719e14517b2f",
       "size": 533,
-      "url": "https://hq.bitstation.local/api/v1/tools/add/0.1.4/files/runner/run.ps1",
+      "url": "https://hq.bitstation.local/api/v1/tools/add/0.2.0/files/runner/run.ps1",
       "executable": true
     },
     {
       "path": "src/main.py",
       "sha256": "809e02b93ffbdb2d9a4447d9a90f9240e9fcbb9a16929744cd5908db1a7b9150",
       "size": 1402,
-      "url": "https://hq.bitstation.local/api/v1/tools/add/0.1.4/files/src/main.py",
+      "url": "https://hq.bitstation.local/api/v1/tools/add/0.2.0/files/src/main.py",
       "executable": true
     },
     {
       "path": "tool.json",
-      "sha256": "000f30925d3ac6bffd03466e527d50fb40eb86d77be7a4c28a003804d2a848df",
-      "size": 714,
-      "url": "https://hq.bitstation.local/api/v1/tools/add/0.1.4/files/tool.json"
+      "sha256": "63e63966fa89497ef255933aae845970b121d7702888bc6cad559c0bc887c77e",
+      "size": 946,
+      "url": "https://hq.bitstation.local/api/v1/tools/add/0.2.0/files/tool.json"
     }
   ],
   "delete_policy": "safe",
@@ -62,5 +86,5 @@
     "__pycache__/**",
     "*.pyc"
   ],
-  "manifest_hash": "1a4e4d361ec86e52162e881ce1306f6905f47738a7a6c0b1022fc9776f23a73b"
+  "manifest_hash": "7be0e5c879d13ed7f6aad6847b3da326ca52c083228fc53a348b613a126c0046"
 }
