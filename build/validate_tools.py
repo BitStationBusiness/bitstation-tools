@@ -4,7 +4,7 @@ from pathlib import Path
 
 REQUIRED_FIELDS = ["tool_id", "name", "version", "platforms", "entrypoint_windows", "io_schema"]
 
-EXCLUDE_DIRS = {"__pycache__", ".venv", "venv", "dist", ".git", "Bit-Karaoke (demo, no oficial)"}
+EXCLUDE_DIRS = {"__pycache__", ".venv", "venv", "dist", ".git", "Bit-Karaoke (demo, no oficial)", "Re-size image"}
 
 def die(msg: str, code: int = 2) -> None:
     print(f"[validate] ERROR: {msg}", file=sys.stderr)

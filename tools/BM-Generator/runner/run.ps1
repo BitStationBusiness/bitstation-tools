@@ -31,7 +31,7 @@ $CliScript  = Join-Path $BackendDir "cli.py"
 
 function Test-VenvPackages {
     if (-not (Test-Path $VenvPython)) { return $false }
-    $result = & "$VenvPython" -c "import pydantic; import mutagen; print('OK')" 2>&1
+    $result = & "$VenvPython" -c "import pydantic; import mutagen; print('OK')" 2>$null
     return ($LASTEXITCODE -eq 0)
 }
 
