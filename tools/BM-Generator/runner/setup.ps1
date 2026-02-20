@@ -107,11 +107,11 @@ if ($OfflineMode) {
 }
 else {
     # Online: install core deps first
-    Write-Host "Installing core dependencies (pydantic, mutagen, pydub)..." -ForegroundColor Cyan
-    & "$VenvPip" install pydantic mutagen pydub --quiet
+    Write-Host "Installing core dependencies (pydantic, mutagen, pydub, soundfile)..." -ForegroundColor Cyan
+    & "$VenvPip" install pydantic mutagen pydub soundfile --quiet
     if ($LASTEXITCODE -ne 0) {
         Write-Warning "Core deps install had issues, retrying..."
-        & "$VenvPip" install pydantic mutagen pydub
+        & "$VenvPip" install pydantic mutagen pydub soundfile
     }
 
     # GPU detection
@@ -202,7 +202,7 @@ Write-Host "=== Verifying installations ===" -ForegroundColor Cyan
 $verifyScript = @"
 import sys
 errors = []
-for mod in ['pydantic', 'mutagen', 'pydub']:
+for mod in ['pydantic', 'mutagen', 'pydub', 'soundfile']:
     try:
         __import__(mod)
         print(f'  {mod}: OK')
