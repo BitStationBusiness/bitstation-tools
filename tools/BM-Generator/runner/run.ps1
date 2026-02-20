@@ -3,7 +3,7 @@
     Entrypoint para BM-Generator
 .DESCRIPTION
     Ejecuta la herramienta BM-Generator (Music Album Creator).
-    Instala automaticamente las dependencias si no existen.
+    Instala automaticamente las dependencias si no existen o estan incompletas.
     Compatible con rutas con espacios.
 #>
 
@@ -26,25 +26,40 @@ $VenvDir    = Join-Path $ToolDir ".venv"
 $VenvPython = Join-Path $VenvDir "Scripts\python.exe"
 $CliScript  = Join-Path $BackendDir "cli.py"
 
-# Auto-setup if venv missing
-if (-not (Test-Path $VenvPython)) {
-    Write-Host "[BM-Generator] Venv not found, running setup..." -ForegroundColor Yellow
+function Test-VenvPackages {
+    if (-not (Test-Path $VenvPython)) { return $false }
+    $result = & "$VenvPython" -c "import pydantic; import mutagen; print('OK')" 2>&1
+    return ($LASTEXITCODE -eq 0)
+}
+
+function Run-Setup {
+    Write-Host "[BM-Generator] Running setup..." -ForegroundColor Yellow
     $SetupScript = Join-Path $ScriptDir "setup.ps1"
-    if (Test-Path $SetupScript) {
-        & "$SetupScript"
-        if ($LASTEXITCODE -ne 0) {
-            Write-Error "[BM-Generator] Setup failed with exit code $LASTEXITCODE"
-            exit 1
-        }
-    } else {
+    if (-not (Test-Path $SetupScript)) {
         Write-Error "[BM-Generator] setup.ps1 not found at $SetupScript"
+        exit 1
+    }
+    & "$SetupScript"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "[BM-Generator] Setup failed with exit code $LASTEXITCODE"
         exit 1
     }
 }
 
-if (-not (Test-Path $VenvPython)) {
-    Write-Error "[BM-Generator] Python not found at $VenvPython after setup"
-    exit 1
+# Check if venv exists AND has critical packages
+if (-not (Test-VenvPackages)) {
+    if (-not (Test-Path $VenvPython)) {
+        Write-Host "[BM-Generator] Venv not found, running setup..."
+    } else {
+        Write-Host "[BM-Generator] Venv exists but packages missing, running setup..."
+    }
+    Run-Setup
+
+    # Verify again after setup
+    if (-not (Test-VenvPackages)) {
+        Write-Error "[BM-Generator] Setup completed but critical packages still missing"
+        exit 1
+    }
 }
 
 if (-not (Test-Path $CliScript)) {
@@ -56,10 +71,8 @@ if (-not (Test-Path $CliScript)) {
 $TorchCache = Join-Path $ToolDir "vendor\torch_cache"
 if (Test-Path $TorchCache) {
     $Env:TORCH_HOME = $TorchCache
-    Write-Host "[BM-Generator] TORCH_HOME=$TorchCache"
 }
 
-# Ensure PYTHONPATH includes backend dir for imports
 $Env:PYTHONPATH = $BackendDir
 
 Write-Host "[BM-Generator] Running: $VenvPython $CliScript"
