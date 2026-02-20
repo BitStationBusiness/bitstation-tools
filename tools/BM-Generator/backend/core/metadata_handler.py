@@ -1,6 +1,6 @@
 import hashlib
 import logging
-from typing import List, Optional
+from typing import List, Optional, Union
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -14,12 +14,12 @@ class SongMetadata(BaseModel):
     title: str
     artist: str
     album: str
-    year: str
+    year: Union[str, int]
     genre: str
     duration: float
     duration_ms: int = 0
-    track_number: str
-    disc_number: str
+    track_number: Union[str, int]
+    disc_number: Union[str, int]
     format: str
     quality: str
     path: str
@@ -30,9 +30,9 @@ class SongMetadata(BaseModel):
 class AlbumMetadata(BaseModel):
     album_artist: str
     album_name: str
-    year: str
+    year: Union[str, int]
     genre: str
-    release_date: str = ""
+    release_date: Union[str, int] = ""
     total_tracks: int
     total_discs: int = 1
     songs: List[SongMetadata]
