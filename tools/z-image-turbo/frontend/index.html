@@ -45,8 +45,9 @@
     <footer class="composer">
       <div class="input-wrap">
         <input id="promptInput" type="text" placeholder="Describe la imagen..." autocomplete="off" spellcheck="false">
-        <button id="sendBtn" class="send-btn" onclick="submitPrompt()" aria-label="Enviar">
-          <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+        <button id="sendBtn" class="send-btn" onclick="onSendClick()" aria-label="Enviar">
+          <svg id="sendIcon" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+          <svg id="stopIcon" viewBox="0 0 24 24" style="display:none"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
         </button>
       </div>
     </footer>

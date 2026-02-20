@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>BM Generator</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <button class="icon-btn" aria-label="Volver" onclick="goBack()">
+        <svg viewBox="0 0 24 24"><path d="M15.4 19.4L8 12l7.4-7.4L14 3.2 5.2 12 14 20.8z"/></svg>
+      </button>
+      <h1 class="title">BM Generator</h1>
+      <div></div>
+    </header>
+
+    <main id="content">
+      <!-- Stepper -->
+      <div class="stepper">
+        <div class="step-dot active" id="stepDot1">1</div>
+        <div class="step-line" id="stepLine1"></div>
+        <div class="step-dot" id="stepDot2">2</div>
+        <div class="step-line" id="stepLine2"></div>
+        <div class="step-dot" id="stepDot3">3</div>
+      </div>
+
+      <!-- Step 1: Upload -->
+      <section class="panel active" id="panel1">
+        <div class="drop-zone" id="dropZone" onclick="pickAudioFiles()">
+          <div class="icon">&#127925;</div>
+          <h3>Subir archivos de audio</h3>
+          <p>Haz clic para seleccionar o arrastra archivos (.mp3, .flac, .wav, .ogg)</p>
+        </div>
+        <div class="file-list" id="fileList"></div>
+        <div class="btn-row">
+          <div></div>
+          <button class="btn btn-primary" id="analyzeBtn" onclick="startAnalyze()" disabled>Analizar &rarr;</button>
+        </div>
+      </section>
+
+      <!-- Step 2: Metadata -->
+      <section class="panel" id="panel2">
+        <div class="form-section">
+          <h3>Informaci&oacute;n del &Aacute;lbum</h3>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Artista del &Aacute;lbum</label>
+              <input id="albumArtist" type="text" placeholder="Artista principal">
+            </div>
+            <div class="form-group">
+              <label>T&iacute;tulo del &Aacute;lbum</label>
+              <input id="albumTitle" type="text" placeholder="Nombre del album">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>A&ntilde;o</label>
+              <input id="albumYear" type="number" placeholder="2024">
+            </div>
+            <div class="form-group">
+              <label>G&eacute;nero</label>
+              <input id="albumGenre" type="text" placeholder="Pop, Rock, etc.">
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3>Canciones</h3>
+          <div id="tracksContainer"></div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn btn-secondary" onclick="goToStep(1)">&larr; Volver</button>
+          <button class="btn btn-primary" onclick="goToStep(3)">Construir BSM &rarr;</button>
+        </div>
+      </section>
+
+      <!-- Step 3: Build -->
+      <section class="panel" id="panel3">
+        <div class="build-summary" id="buildSummary"></div>
+        <div class="progress-bar" id="progressBar" style="display:none">
+          <div class="fill" id="progressFill"></div>
+        </div>
+        <div class="build-status" id="buildStatus"></div>
+        <div class="btn-row">
+          <button class="btn btn-secondary" id="buildBackBtn" onclick="goToStep(2)">&larr; Volver</button>
+          <button class="btn btn-primary" id="buildBtn" onclick="startBuild()">Construir .bsm</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="bridge.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

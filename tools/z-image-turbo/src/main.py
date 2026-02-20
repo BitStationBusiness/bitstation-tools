@@ -39,17 +39,11 @@ def fail(msg: str, out_path: Path, code: int = 2) -> None:
     print(json.dumps(error_output, ensure_ascii=False), file=sys.stderr)
     raise SystemExit(code)
 
-def get_downloads_folder() -> Path:
-    """Obtiene la carpeta de Descargas del usuario."""
-    # En Windows, usar la variable de entorno o el path conocido
-    downloads = os.environ.get("USERPROFILE", "")
-    if downloads:
-        downloads_path = Path(downloads) / "Downloads"
-        if downloads_path.exists():
-            return downloads_path
-    
-    # Fallback
-    return Path.home() / "Downloads"
+def get_output_folder(tool_id: str = "z-image-turbo") -> Path:
+    """Returns the gallery output folder for this tool: C:\\BitStation\\Gallery\\{tool_id}\\"""
+    base = Path("C:/BitStation/Gallery") / tool_id
+    base.mkdir(parents=True, exist_ok=True)
+    return base
 
 def _get_default_model_path() -> Path:
     """Retorna el path del modelo por defecto."""
@@ -779,7 +773,7 @@ def run_persistent_mode() -> int:
                 filename = f"zimg_{timestamp}_{safe_prompt}.png"
                 
                 # Guardar en carpeta de Descargas
-                downloads = get_downloads_folder()
+                downloads = get_output_folder()
                 image_output_path = downloads / filename
                 
                 job_count += 1
@@ -894,7 +888,7 @@ def main() -> int:
     filename = f"zimg_{timestamp}_{safe_prompt}.png"
 
     # Guardar en carpeta de Descargas
-    downloads = get_downloads_folder()
+    downloads = get_output_folder()
     image_output_path = downloads / filename
 
     size_label = data.get("size", "custom") if raw_w is not None else size

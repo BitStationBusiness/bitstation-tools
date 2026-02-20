@@ -87,6 +87,11 @@
   window.ToolBridge = {
     isShellMode,
 
+    async call(action, params) {
+      if (isShellMode()) return sendViaBridge(action, params || {});
+      throw new Error(action + ' only available in shell mode');
+    },
+
     async handshake() {
       if (isShellMode()) {
         return sendViaBridge('handshake', {});

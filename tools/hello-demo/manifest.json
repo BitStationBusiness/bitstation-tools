@@ -2,7 +2,7 @@
   "manifest_version": "1.0",
   "tool_id": "hello-demo",
   "tool_version": "1.0.0",
-  "created_at": "2026-02-20T14:39:15.641483+00:00",
+  "created_at": "2026-02-20T16:02:39.742634+00:00",
   "files": [
     {
       "path": "frontend.zip",
@@ -30,8 +30,8 @@
     },
     {
       "path": "manifest.json",
-      "sha256": "21509d85c77d19cdcc305fb73ab7cc930855c5059883c56d5d41182e973df263",
-      "size": 1794,
+      "sha256": "8423a365bdbf1fb292b4ce08b39f826d74555e111a081bf2c23439888ec3ae47",
+      "size": 2518,
       "url": "https://hq.bitstation.local/api/v1/tools/hello-demo/1.0.0/files/manifest.json"
     },
     {
@@ -67,5 +67,5 @@
     "__pycache__/**",
     "*.pyc"
   ],
-  "manifest_hash": "1e9cdc57f9910ebdd9294e399a31ec1f8b6c375a0633bd11f0fb8b1ebe0c76f6"
+  "manifest_hash": "0280f21885db435a7927d837803f66bb28efa8d5285c8b2cd32adc4d2ef6348a"
 }
