@@ -186,10 +186,10 @@
     const summary = document.getElementById('buildSummary');
     summary.innerHTML =
       '<div><span class="label">Artista:</span> <span class="value">' + escapeHtml(data.album_artist) + '</span></div>' +
-      '<div><span class="label">&Aacute;lbum:</span> <span class="value">' + escapeHtml(data.title) + '</span></div>' +
+      '<div><span class="label">&Aacute;lbum:</span> <span class="value">' + escapeHtml(data.album_name) + '</span></div>' +
       '<div><span class="label">A&ntilde;o:</span> <span class="value">' + escapeHtml(data.year) + '</span></div>' +
       '<div><span class="label">G&eacute;nero:</span> <span class="value">' + escapeHtml(data.genre) + '</span></div>' +
-      '<div><span class="label">Pistas:</span> <span class="value">' + data.tracks.length + '</span></div>' +
+      '<div><span class="label">Pistas:</span> <span class="value">' + data.songs.length + '</span></div>' +
       '<div style="margin-top:8px;font-size:12px;color:var(--muted)">Cada pista sera separada en 4 stems: drums, bass, vocals, other (Demucs htdemucs)</div>';
   }
 

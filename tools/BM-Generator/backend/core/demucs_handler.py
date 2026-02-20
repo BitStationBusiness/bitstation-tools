@@ -1,4 +1,5 @@
 import logging
+import os
 import subprocess
 import shutil
 import hashlib
@@ -12,7 +13,7 @@ DEMUCS_MODEL = "htdemucs"
 DEMUCS_STEMS = ["drums", "bass", "other", "vocals"]
 
 
-def check_cuda_availability() -> tuple[bool, Optional[str]]:
+def check_cuda_availability() -> tuple:
     try:
         import torch
         if torch.cuda.is_available() and torch.cuda.device_count() > 0:
@@ -22,14 +23,32 @@ def check_cuda_availability() -> tuple[bool, Optional[str]]:
         return False, None
 
 
-def _get_demucs_executable() -> str:
-    """Find demucs executable inside the active venv or PATH."""
-    venv = Path(sys.executable).parent
+def _get_demucs_command() -> list:
+    """
+    Return the command list to invoke demucs.
+    Tries demucs.exe in the active venv first, then falls back to python -m demucs.
+    """
+    venv_bin = Path(sys.executable).parent
     for name in ("demucs.exe", "demucs"):
-        candidate = venv / name
+        candidate = venv_bin / name
         if candidate.exists():
-            return str(candidate)
-    return "demucs"
+            return [str(candidate)]
+    return [sys.executable, "-m", "demucs"]
+
+
+def _ensure_torch_home():
+    """
+    If TORCH_HOME is not set, point it to a local vendor/torch_cache
+    relative to the tool root so demucs doesn't try to download models.
+    """
+    if os.environ.get("TORCH_HOME"):
+        return
+
+    tool_root = Path(__file__).resolve().parents[2]
+    cache_dir = tool_root / "vendor" / "torch_cache"
+    if cache_dir.exists():
+        os.environ["TORCH_HOME"] = str(cache_dir)
+        logger.info(f"Set TORCH_HOME={cache_dir}")
 
 
 def run_demucs_cli(
@@ -41,9 +60,10 @@ def run_demucs_cli(
     Run Demucs via CLI and return the directory containing the 4 stems.
     Command: demucs -n htdemucs -o "<output_dir>" "<input_path>"
     """
-    exe = _get_demucs_executable()
-    cmd = [
-        exe,
+    _ensure_torch_home()
+
+    cmd_base = _get_demucs_command()
+    cmd = cmd_base + [
         "-n", DEMUCS_MODEL,
         "-o", str(output_dir),
         "--device", device,
@@ -52,12 +72,24 @@ def run_demucs_cli(
 
     logger.info(f"Running Demucs CLI: {' '.join(cmd)}")
 
+    env = os.environ.copy()
+    if env.get("TORCH_HOME"):
+        logger.info(f"TORCH_HOME={env['TORCH_HOME']}")
+
     result = subprocess.run(
         cmd,
         capture_output=True,
         text=True,
         timeout=3600,
+        env=env,
     )
+
+    if result.stdout:
+        for line in result.stdout.strip().split("\n"):
+            logger.info(f"[demucs stdout] {line}")
+    if result.stderr:
+        for line in result.stderr.strip().split("\n"):
+            logger.info(f"[demucs stderr] {line}")
 
     if result.returncode != 0:
         stderr = result.stderr or "(no stderr)"
@@ -66,7 +98,8 @@ def run_demucs_cli(
     # Demucs writes to: <output_dir>/htdemucs/<stem_name>/
     separated_dir = output_dir / DEMUCS_MODEL / input_path.stem
     if not separated_dir.exists():
-        candidates = list((output_dir / DEMUCS_MODEL).iterdir()) if (output_dir / DEMUCS_MODEL).exists() else []
+        parent = output_dir / DEMUCS_MODEL
+        candidates = list(parent.iterdir()) if parent.exists() else []
         if len(candidates) == 1:
             separated_dir = candidates[0]
         else:
@@ -84,7 +117,6 @@ def normalize_stems(
     """
     Move/rename stems from Demucs output to the final directory,
     ensuring exactly drums.wav, bass.wav, vocals.wav, other.wav exist.
-    Returns {stem_name: path}.
     """
     final_stems_dir.mkdir(parents=True, exist_ok=True)
     stem_paths: Dict[str, str] = {}
@@ -101,7 +133,7 @@ def normalize_stems(
 
 
 def compute_stem_hashes(stems_dir: Path) -> Dict[str, str]:
-    """Optional SHA-256 hashes for traceability."""
+    """SHA-256 hashes for each stem file."""
     hashes = {}
     for stem in DEMUCS_STEMS:
         f = stems_dir / f"{stem}.wav"
@@ -121,11 +153,10 @@ def separate_track(
     job_id: str = "task",
     progress_callback: Optional[Callable] = None,
 ) -> Dict[str, str]:
-    """
-    Full pipeline: run Demucs CLI -> normalize stems -> return paths.
-    """
+    """Full pipeline: run Demucs CLI -> normalize stems -> return paths."""
     has_cuda, gpu_name = check_cuda_availability()
     device = "cuda" if has_cuda else "cpu"
+
     if progress_callback:
         hw = f"GPU: {gpu_name}" if has_cuda else "CPU"
         progress_callback(job_id, 20, f"Separating with Demucs ({hw})...")

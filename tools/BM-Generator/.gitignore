@@ -11,3 +11,6 @@ cpu_test_out/
 backend/BM-Generator.log
 backend/__pycache__/
 backend/core/__pycache__/
+vendor/wheels/
+vendor/models/
+vendor/torch_cache/

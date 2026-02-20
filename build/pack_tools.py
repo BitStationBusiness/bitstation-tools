@@ -133,7 +133,7 @@ def main() -> int:
         icon_path = tdir / "icon.png"
         if icon_path.exists():
             tool_entry["image_url"] = (
-                f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/tools/{tool_id}/icon.png"
+                f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/tools/{tdir.name}/icon.png"
             )
         
         tools.append(tool_entry)

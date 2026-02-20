@@ -1,7 +1,7 @@
 {
     "tool_id": "bm-generator",
     "name": "BM Generator (Music Album Creator)",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "category": "audio-processing",
     "platforms": [
         "windows"
@@ -22,45 +22,145 @@
                     "type": "string",
                     "enum": [
                         "analyze",
+                        "demucs_split",
+                        "build_bm",
                         "build"
                     ],
-                    "description": "Action to perform: 'analyze' for metadata extraction or 'build' for album creation."
+                    "description": "Action: 'analyze' (metadata extraction), 'demucs_split' (stem separation), 'build_bm'/'build' (full album .bm creation)."
                 },
                 "files": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     },
-                    "description": "List of absolute file paths to analyze (required for 'analyze' action)."
+                    "description": "List of absolute file paths to analyze (for 'analyze' action)."
+                },
+                "tracks": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "file": {
+                                "type": "string"
+                            },
+                            "disc_number": {
+                                "type": "integer"
+                            },
+                            "track_number": {
+                                "type": "integer"
+                            },
+                            "title": {
+                                "type": "string"
+                            },
+                            "lrc_file": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "description": "Tracks for demucs_split or as input references."
                 },
                 "album_data": {
                     "type": "object",
-                    "description": "Full album metadata structure (required for 'build' action)."
+                    "description": "Full album metadata (required for 'build_bm'/'build')."
+                },
+                "cover": {
+                    "type": "object",
+                    "properties": {
+                        "album_cover": {
+                            "type": "string"
+                        },
+                        "disc_covers": {
+                            "type": "object"
+                        }
+                    },
+                    "description": "Cover image paths."
+                },
+                "output_dir": {
+                    "type": "string",
+                    "description": "Local workspace directory for output."
+                },
+                "export_bm_path": {
+                    "type": "string",
+                    "description": "Final .bm export path."
+                },
+                "mode": {
+                    "type": "string",
+                    "enum": [
+                        "local",
+                        "nodeworker"
+                    ],
+                    "default": "local",
+                    "description": "Execution mode (default: local)."
                 }
             }
         },
         "output": {
             "type": "object",
             "required": [
-                "ok"
+                "ok",
+                "action"
             ],
             "properties": {
                 "ok": {
                     "type": "boolean"
                 },
-                "error": {
+                "action": {
                     "type": "string"
+                },
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "analyzed_songs": {
                     "type": "array",
                     "items": {
                         "type": "object"
                     },
-                    "description": "List of extracted metadata for songs (result of 'analyze')."
+                    "description": "Extracted metadata (result of 'analyze')."
                 },
                 "bm_file_path": {
                     "type": "string",
-                    "description": "Path to the generated .bm file (result of 'build')."
+                    "description": "Path to the generated .bm file."
+                },
+                "bm_path": {
+                    "type": "string",
+                    "description": "Alias for bm_file_path."
+                },
+                "workspace": {
+                    "type": "string",
+                    "description": "Workspace directory used."
+                },
+                "demucs": {
+                    "type": "object",
+                    "properties": {
+                        "model": {
+                            "type": "string"
+                        },
+                        "tracks": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "input": {
+                                        "type": "string"
+                                    },
+                                    "stems_dir": {
+                                        "type": "string"
+                                    },
+                                    "stems": {
+                                        "type": "object"
+                                    },
+                                    "status": {
+                                        "type": "string"
+                                    },
+                                    "error": {}
+                                }
+                            }
+                        }
+                    },
+                    "description": "Demucs stem separation results."
                 }
             }
         }

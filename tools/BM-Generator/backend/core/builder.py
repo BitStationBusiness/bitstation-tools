@@ -2,15 +2,26 @@ import logging
 import shutil
 import json
 import zipfile
+import hashlib
 import os
 from pathlib import Path
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
-from .demucs_handler import separate_track
+from .demucs_handler import separate_track, compute_stem_hashes, DEMUCS_STEMS
 from .metadata_handler import AlbumMetadata
 
 logger = logging.getLogger(__name__)
+
+BM_SCHEMA_VERSION = "bm/1.0"
+
+
+def _sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
 
 class BMBuilder:
@@ -29,119 +40,205 @@ class BMBuilder:
         album_data: AlbumMetadata,
         job_id: str,
         progress_callback=None,
+        export_bm_path: Optional[str] = None,
         **kwargs,
     ) -> str:
         """
         Build a .bm bundle from album metadata.
-        Each track is separated into 4 stems (drums, bass, vocals, other) via Demucs CLI.
+        Each track is separated into 4 stems (drums, bass, vocals, other) via Demucs.
         """
         album_safe = self._safe_name(album_data.album_name)
-        base_dir = self.temp_dir / job_id / album_safe
-        if base_dir.exists():
-            shutil.rmtree(base_dir)
-        base_dir.mkdir(parents=True)
+        multi_disc = album_data.total_discs > 1
 
-        songs_dir = base_dir / "Canciones"
-        songs_dir.mkdir()
+        workspace = self.temp_dir / job_id / album_safe
+        if workspace.exists():
+            shutil.rmtree(workspace)
+        workspace.mkdir(parents=True)
 
         temp_demucs_out = self.temp_dir / job_id / "_demucs_raw"
         temp_demucs_out.mkdir(parents=True, exist_ok=True)
 
+        cover_dir = workspace / "Portada"
+        cover_dir.mkdir()
+
         total_songs = len(album_data.songs)
-        track_stem_info = []
+        manifest_tracks = []
 
         for idx, song in enumerate(album_data.songs):
-            base_pct = 5 + int((idx / total_songs) * 75)
+            base_pct = 5 + int((idx / max(total_songs, 1)) * 75)
             if progress_callback:
                 progress_callback(job_id, base_pct, f"Processing {song.title}...")
 
-            if album_data.total_discs > 1:
-                try:
-                    disc_num = int(song.disc_number.split("/")[0])
-                except Exception:
-                    disc_num = 1
-                folder_name = f"CD{disc_num} - {song.track_number} - {song.title}"
+            # Determine disc and track numbers
+            try:
+                disc_num = int(str(song.disc_number).split("/")[0])
+            except Exception:
+                disc_num = 1
+
+            try:
+                track_num = int(str(song.track_number).split("/")[0])
+            except Exception:
+                track_num = idx + 1
+
+            track_prefix = str(track_num).zfill(2)
+            track_safe_title = self._safe_name(song.title)
+            folder_name = f"{track_prefix} - {track_safe_title}"
+
+            # Build directory structure
+            if multi_disc:
+                disc_dir = workspace / f"CD{disc_num}" / "Canciones"
             else:
-                folder_name = f"{song.track_number} - {song.title}"
+                disc_dir = workspace / "Canciones"
+            disc_dir.mkdir(parents=True, exist_ok=True)
 
-            song_safe = self._safe_name(folder_name)
-            song_dir = songs_dir / song_safe
-            song_dir.mkdir()
+            song_dir = disc_dir / folder_name
+            song_dir.mkdir(exist_ok=True)
 
+            # Copy source audio
             original = Path(song.path)
-            dest = song_dir / original.name
-            shutil.copy2(original, dest)
+            if original.exists():
+                dest = song_dir / original.name
+                shutil.copy2(original, dest)
+            else:
+                logger.warning(f"Source file not found: {original}")
+                dest = song_dir / song.filename
 
-            bm_stems_dir = song_dir / "BM"
-            bm_stems_dir.mkdir()
+            # Copy LRC if exists
+            lrc_src = None
+            if song.lrc_file and Path(song.lrc_file).exists():
+                lrc_src = Path(song.lrc_file)
+            else:
+                auto_lrc = original.with_suffix(".lrc")
+                if auto_lrc.exists():
+                    lrc_src = auto_lrc
+            if lrc_src:
+                shutil.copy2(lrc_src, song_dir / f"{track_prefix} - {track_safe_title}.lrc")
 
-            if progress_callback:
-                progress_callback(
-                    job_id, base_pct + 2,
-                    f"Separating stems for {song.title}..."
+            # Demucs stem separation
+            bsm_dir = song_dir / "BSM"
+            bsm_dir.mkdir(exist_ok=True)
+
+            stem_info = {}
+            stem_hashes = {}
+            try:
+                if progress_callback:
+                    progress_callback(job_id, base_pct + 2, f"Separating stems for {song.title}...")
+
+                stems = separate_track(
+                    input_path=dest if dest.exists() else original,
+                    final_stems_dir=bsm_dir,
+                    temp_demucs_out=temp_demucs_out,
+                    job_id=f"{job_id}_t{idx}",
+                    progress_callback=progress_callback,
                 )
+                stem_info = stems
+                stem_hashes = compute_stem_hashes(bsm_dir)
+            except Exception as e:
+                logger.error(f"Stem separation failed for {song.title}: {e}")
+                stem_info = {"error": str(e)}
 
-            stems = separate_track(
-                input_path=dest,
-                final_stems_dir=bm_stems_dir,
-                temp_demucs_out=temp_demucs_out,
-                job_id=f"{job_id}_t{idx}",
-                progress_callback=progress_callback,
-            )
+            # Track hash
+            file_hash = song.sha256
+            if not file_hash and dest.exists():
+                try:
+                    file_hash = _sha256_file(dest)
+                except Exception:
+                    file_hash = ""
 
-            track_stem_info.append({
+            # Internal paths relative to workspace root
+            if multi_disc:
+                track_internal = f"CD{disc_num}/Canciones/{folder_name}/{original.name}"
+                stems_internal = f"CD{disc_num}/Canciones/{folder_name}/BSM"
+                lrc_internal = f"CD{disc_num}/Canciones/{folder_name}/{track_prefix} - {track_safe_title}.lrc" if lrc_src else None
+            else:
+                track_internal = f"Canciones/{folder_name}/{original.name}"
+                stems_internal = f"Canciones/{folder_name}/BSM"
+                lrc_internal = f"Canciones/{folder_name}/{track_prefix} - {track_safe_title}.lrc" if lrc_src else None
+
+            track_manifest = {
+                "disc_number": disc_num,
+                "track_number": track_num,
                 "title": song.title,
-                "stems": list(stems.keys()),
-                "stems_dir": str(bm_stems_dir.relative_to(base_dir)),
-            })
+                "artist": song.artist,
+                "duration_ms": song.duration_ms or int(song.duration * 1000),
+                "format": song.format,
+                "quality": song.quality,
+                "sha256": file_hash,
+                "path": track_internal,
+                "lrc_path": lrc_internal,
+                "stems_path": stems_internal,
+                "stems": {s: f"{stems_internal}/{s}.wav" for s in DEMUCS_STEMS},
+                "stem_hashes": stem_hashes,
+            }
+            manifest_tracks.append(track_manifest)
 
-            song_info = song.dict()
-            song_info["stems_dir"] = "BM"
-            with open(song_dir / "song_info.json", "w", encoding="utf-8") as f:
-                json.dump(song_info, f, indent=4)
-
-        # Cover art
+        # --- Cover art ---
+        cover_internal = None
         if album_data.cover_image_path:
             cover_src = Path(album_data.cover_image_path)
             if cover_src.exists():
-                shutil.copy2(cover_src, base_dir / f"{album_safe}{cover_src.suffix}")
+                cover_name = f"{album_safe}{cover_src.suffix}"
+                shutil.copy2(cover_src, cover_dir / cover_name)
+                cover_internal = f"Portada/{cover_name}"
 
-        # Album manifest (bm.json)
-        manifest = {
-            "format": "bm",
-            "version": "1.0",
+        disc_covers_internal = {}
+        if multi_disc and album_data.disc_covers:
+            for disc_key, disc_cover_path in album_data.disc_covers.items():
+                dcp = Path(disc_cover_path)
+                if dcp.exists():
+                    disc_cover_name = f"{album_safe}_CD{disc_key}{dcp.suffix}"
+                    shutil.copy2(dcp, cover_dir / disc_cover_name)
+                    disc_covers_internal[disc_key] = f"Portada/{disc_cover_name}"
+
+        # --- Build bm.json manifest ---
+        if progress_callback:
+            progress_callback(job_id, 88, "Building bm.json manifest...")
+
+        # Collect unique album artists from tracks
+        album_artists = list(set(t["artist"] for t in manifest_tracks if t.get("artist")))
+
+        bm_manifest = {
+            "schema_version": BM_SCHEMA_VERSION,
             "album_artist": album_data.album_artist,
-            "album_name": album_data.album_name,
+            "album_artists": album_artists,
+            "title": album_data.album_name,
             "year": album_data.year,
+            "release_date": album_data.release_date or album_data.year,
             "genre": album_data.genre,
-            "total_tracks": album_data.total_tracks,
-            "total_discs": album_data.total_discs,
+            "discs": album_data.total_discs,
+            "total_tracks": album_data.total_tracks or len(manifest_tracks),
+            "stems_model": "htdemucs",
             "stems_per_track": ["drums", "bass", "vocals", "other"],
-            "created_at": datetime.utcnow().isoformat(),
-            "tracks": track_stem_info,
+            "cover": cover_internal,
+            "disc_covers": disc_covers_internal if disc_covers_internal else None,
+            "tracks": manifest_tracks,
+            "created_at": datetime.now(timezone.utc).isoformat(),
         }
-        with open(base_dir / "bm.json", "w", encoding="utf-8") as f:
-            json.dump(manifest, f, indent=4)
 
-        # Legacy album_info.json for compatibility
-        with open(base_dir / "album_info.json", "w", encoding="utf-8") as f:
-            json.dump(album_data.dict(), f, indent=4)
+        with open(workspace / "bm.json", "w", encoding="utf-8") as f:
+            json.dump(bm_manifest, f, indent=2, ensure_ascii=False)
 
-        # Package into .bm (ZIP)
+        # --- Package into .bm (ZIP) ---
         if progress_callback:
             progress_callback(job_id, 92, "Packaging .bm file...")
 
-        bm_path = self.output_dir / f"{album_safe}.bm"
+        if export_bm_path:
+            bm_path = Path(export_bm_path)
+            bm_path.parent.mkdir(parents=True, exist_ok=True)
+        else:
+            bm_path = self.output_dir / f"{album_safe}.bm"
+
         with zipfile.ZipFile(bm_path, "w", zipfile.ZIP_DEFLATED) as zf:
-            for root, _dirs, files in os.walk(base_dir):
+            for root, _dirs, files in os.walk(workspace):
                 for fname in files:
                     fpath = Path(root) / fname
-                    zf.write(fpath, fpath.relative_to(base_dir))
+                    arcname = fpath.relative_to(workspace).as_posix()
+                    zf.write(fpath, arcname)
 
         if progress_callback:
             progress_callback(job_id, 100, f"Created {bm_path.name}")
 
-        # Cleanup
+        # Cleanup temp workspace
         shutil.rmtree(self.temp_dir / job_id, ignore_errors=True)
 
         return str(bm_path)

@@ -1,0 +1,4 @@
+pydantic>=2.0
+mutagen>=1.47
+demucs>=4.0
+pydub>=0.25

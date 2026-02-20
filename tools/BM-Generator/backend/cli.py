@@ -7,9 +7,6 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent))
 
-from core.metadata_handler import extract_metadata, AlbumMetadata
-from core.builder import BMBuilder
-
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -18,24 +15,176 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def run_persistent_mode():
-    """
-    Persistent (flash) mode: read JSON jobs from stdin, write JSON results to stdout.
-    """
-    logger.info("Initializing Persistent Mode...")
+def preflight_check():
+    """Verify critical imports before doing anything else."""
+    errors = []
+    for mod_name in ("pydantic", "mutagen"):
+        try:
+            __import__(mod_name)
+        except ImportError as e:
+            errors.append(f"{mod_name}: {e}")
+
+    if errors:
+        msg = "Preflight FAILED - missing critical packages:\n" + "\n".join(f"  - {e}" for e in errors)
+        logger.critical(msg)
+        logger.critical(f"Python executable: {sys.executable}")
+        logger.critical(f"sys.path: {sys.path}")
+        return False, msg
+    return True, None
+
+
+def _write_result(output_path: Path, result: dict):
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(result, f, indent=2, ensure_ascii=False)
+
+
+def handle_analyze(data: dict) -> dict:
+    from core.metadata_handler import extract_metadata
+
+    files = data.get("files") or data.get("tracks") or []
+    analyzed = []
+    errors = []
+
+    for item in files:
+        fp = item if isinstance(item, str) else item.get("file", "")
+        p = Path(fp)
+        if not p.exists():
+            errors.append(f"File not found: {fp}")
+            continue
+        try:
+            meta = extract_metadata(p)
+            analyzed.append(meta.model_dump())
+        except Exception as e:
+            errors.append(f"Error analyzing {fp}: {e}")
+
+    result = {"ok": True, "action": "analyze", "analyzed_songs": analyzed}
+    if errors:
+        result["errors"] = errors
+    return result
+
+
+def handle_demucs_split(data: dict) -> dict:
+    from core.demucs_handler import separate_track, check_cuda_availability, DEMUCS_MODEL
+
+    tracks = data.get("tracks") or []
+    output_dir = data.get("output_dir")
+    if not output_dir:
+        base = Path(__file__).parent.parent
+        output_dir = str(base / "output")
+
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    temp_demucs = output_path / "_demucs_temp"
+    temp_demucs.mkdir(parents=True, exist_ok=True)
+
+    has_cuda, gpu_name = check_cuda_availability()
+    track_results = []
+
+    for t in tracks:
+        fp = t if isinstance(t, str) else t.get("file", "")
+        p = Path(fp)
+        track_info = {"input": str(p), "status": "error", "error": None, "stems": {}, "stems_dir": ""}
+
+        if not p.exists():
+            track_info["error"] = f"File not found: {fp}"
+            track_results.append(track_info)
+            continue
+
+        try:
+            track_num = t.get("track_number", 1) if isinstance(t, dict) else 1
+            title = t.get("title", p.stem) if isinstance(t, dict) else p.stem
+            safe_name = f"{str(track_num).zfill(2)} - {title}"
+            safe_name = "".join(c for c in safe_name if c.isalnum() or c in (" ", "-", "_", ".")).strip()
+
+            stems_dir = output_path / "BSM" / safe_name
+            stems_dir.mkdir(parents=True, exist_ok=True)
+
+            def progress_log(jid, pct, msg):
+                logger.info(f"[{jid}] {pct}% {msg}")
+
+            stems = separate_track(
+                input_path=p,
+                final_stems_dir=stems_dir,
+                temp_demucs_out=temp_demucs,
+                job_id=f"split_{safe_name}",
+                progress_callback=progress_log,
+            )
+
+            track_info["status"] = "done"
+            track_info["stems_dir"] = str(stems_dir)
+            track_info["stems"] = stems
+        except Exception as e:
+            logger.error(f"Demucs split failed for {fp}: {e}")
+            track_info["error"] = str(e)
+
+        track_results.append(track_info)
+
+    return {
+        "ok": all(t["status"] == "done" for t in track_results),
+        "action": "demucs_split",
+        "demucs": {
+            "model": DEMUCS_MODEL,
+            "tracks": track_results,
+        },
+        "errors": [t["error"] for t in track_results if t["error"]],
+    }
+
+
+def handle_build_bm(data: dict) -> dict:
+    from core.metadata_handler import AlbumMetadata
+    from core.builder import BMBuilder
+
+    album_raw = data.get("album_data")
+    if not album_raw:
+        return {"ok": False, "action": "build_bm", "errors": ["album_data is required"]}
+
+    output_dir = data.get("output_dir")
+    export_bm_path = data.get("export_bm_path")
 
     base_dir = Path(__file__).parent.parent
-    temp_dir = base_dir / "temp"
-    output_dir = base_dir / "output"
-    temp_dir.mkdir(exist_ok=True)
-    output_dir.mkdir(exist_ok=True)
+    if output_dir:
+        out = Path(output_dir)
+    else:
+        out = base_dir / "output"
+    out.mkdir(parents=True, exist_ok=True)
 
-    builder = BMBuilder(output_dir, temp_dir)
+    temp = base_dir / "temp"
+    temp.mkdir(parents=True, exist_ok=True)
 
-    def progress_logger(job_id, percent, msg):
-        logger.info(f"[{job_id}] {percent}% {msg}")
+    album = AlbumMetadata(**album_raw)
+    builder = BMBuilder(out, temp)
 
-    # Signal readiness
+    def progress_log(jid, pct, msg):
+        logger.info(f"[{pct}%] {msg}")
+
+    job_id = f"cli_{abs(hash(str(album_raw)))}"[:12]
+    bm_path = builder.build_album(
+        album, job_id,
+        progress_callback=progress_log,
+        export_bm_path=export_bm_path,
+    )
+
+    return {
+        "ok": True,
+        "action": "build_bm",
+        "bm_file_path": bm_path,
+        "bm_path": bm_path,
+        "workspace": str(out),
+    }
+
+
+def run_persistent_mode():
+    """Persistent (flash) mode: read JSON jobs from stdin, write JSON results to stdout."""
+    logger.info("Initializing Persistent Mode...")
+
+    ok, err = preflight_check()
+    if not ok:
+        print(json.dumps({"status": "error", "error": err}))
+        sys.stdout.flush()
+        sys.exit(1)
+
     print(json.dumps({"status": "ready"}))
     sys.stdout.flush()
 
@@ -52,34 +201,22 @@ def run_persistent_mode():
             job = json.loads(line)
             job_id = job.get("id", "unknown")
             action = job.get("action")
-            result = {"id": job_id, "ok": True}
+            result = {"id": job_id}
 
             try:
                 if action == "analyze":
-                    files = job.get("files", [])
-                    analyzed = []
-                    for f in files:
-                        p = Path(f)
-                        if p.exists():
-                            analyzed.append(extract_metadata(p).dict())
-                    result["analyzed_songs"] = analyzed
-
-                elif action == "build":
-                    album_data = AlbumMetadata(**job.get("album_data", {}))
-                    bm_path = builder.build_album(
-                        album_data, job_id,
-                        progress_callback=progress_logger,
-                    )
-                    result["bm_file_path"] = str(bm_path)
-
+                    result.update(handle_analyze(job))
+                elif action == "demucs_split":
+                    result.update(handle_demucs_split(job))
+                elif action in ("build", "build_bm"):
+                    result.update(handle_build_bm(job))
                 else:
-                    result = {"id": job_id, "ok": False, "error": f"Unknown action: {action}"}
-
+                    result.update({"ok": False, "error": f"Unknown action: {action}"})
             except Exception as e:
                 logger.error(f"Job {job_id} failed: {e}")
-                result = {"id": job_id, "ok": False, "error": str(e)}
+                result.update({"ok": False, "error": str(e)})
 
-            print(json.dumps(result))
+            print(json.dumps(result, ensure_ascii=False))
             sys.stdout.flush()
 
         except KeyboardInterrupt:
@@ -95,6 +232,17 @@ def main():
     parser.add_argument("--persistent", action="store_true", help="Run in persistent mode")
     args = parser.parse_args()
 
+    logger.info(f"Python: {sys.executable}")
+    logger.info(f"Working dir: {Path.cwd()}")
+
+    ok, err = preflight_check()
+    if not ok:
+        if args.output:
+            _write_result(Path(args.output), {"ok": False, "error": err})
+        sys.exit(1)
+
+    logger.info("Preflight OK")
+
     if args.persistent:
         run_persistent_mode()
         return
@@ -108,63 +256,36 @@ def main():
 
     if not input_path.exists():
         logger.error(f"Input file not found: {input_path}")
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(output_path, "w", encoding="utf-8") as f:
-            json.dump({"ok": False, "error": f"Input not found: {input_path}"}, f)
+        _write_result(output_path, {"ok": False, "error": f"Input not found: {input_path}"})
         sys.exit(1)
 
     try:
         with open(input_path, "r", encoding="utf-8-sig") as f:
             data = json.load(f)
     except Exception as e:
-        with open(output_path, "w", encoding="utf-8") as f:
-            json.dump({"ok": False, "error": f"Invalid JSON: {e}"}, f)
+        _write_result(output_path, {"ok": False, "error": f"Invalid JSON: {e}"})
         sys.exit(1)
 
     action = data.get("action")
-    result = {"ok": True}
+    logger.info(f"Action: {action}")
 
     try:
         if action == "analyze":
-            analyzed = []
-            for fp in data.get("files", []):
-                p = Path(fp)
-                if p.exists():
-                    analyzed.append(extract_metadata(p).dict())
-            result["analyzed_songs"] = analyzed
-
-        elif action == "build":
-            album_raw = data.get("album_data")
-            if not album_raw:
-                raise ValueError("album_data is required for build")
-
-            album = AlbumMetadata(**album_raw)
-            base_dir = Path(__file__).parent.parent
-            temp_dir = base_dir / "temp"
-            output_dir = base_dir / "output"
-            temp_dir.mkdir(exist_ok=True)
-            output_dir.mkdir(exist_ok=True)
-
-            builder = BMBuilder(output_dir, temp_dir)
-
-            def progress_logger(jid, pct, msg):
-                logger.info(f"[{pct}%] {msg}")
-
-            job_id = f"cli_{abs(hash(str(album_raw)))}"[:12]
-            bm_path = builder.build_album(album, job_id, progress_callback=progress_logger)
-            result["bm_file_path"] = str(bm_path)
-
+            result = handle_analyze(data)
+        elif action == "demucs_split":
+            result = handle_demucs_split(data)
+        elif action in ("build", "build_bm"):
+            result = handle_build_bm(data)
         else:
-            raise ValueError(f"Unknown action: {action}")
-
+            result = {"ok": False, "action": action, "errors": [f"Unknown action: {action}"]}
     except Exception as e:
         logger.error(f"Error: {e}")
         traceback.print_exc()
-        result = {"ok": False, "error": str(e)}
+        result = {"ok": False, "action": action, "errors": [str(e)]}
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(result, f, indent=2)
+    _write_result(output_path, result)
+    exit_code = 0 if result.get("ok") else 1
+    sys.exit(exit_code)
 
 
 if __name__ == "__main__":
@@ -172,4 +293,5 @@ if __name__ == "__main__":
         main()
     except Exception as e:
         logger.critical(f"Unhandled: {e}")
+        traceback.print_exc()
         sys.exit(1)
