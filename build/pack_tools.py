@@ -80,6 +80,14 @@ def main() -> int:
         digest = sha256_file(asset_path)
         print(f"[pack]   SHA256: {digest[:16]}...")
 
+        if release_tag:
+            download_url = (
+                f"https://github.com/{GITHUB_REPO}/releases/download/"
+                f"{release_tag}/{asset_name}"
+            )
+        else:
+            download_url = None
+
         tool_entry = {
             "tool_id": tool_id,
             "name": meta["name"],
@@ -87,8 +95,10 @@ def main() -> int:
             "asset_name": asset_name,
             "sha256": digest,
             "platforms": meta["platforms"],
-            "category": meta.get("category", "uncategorized")
+            "category": meta.get("category", "uncategorized"),
         }
+        if download_url:
+            tool_entry["download_url"] = download_url
         
         if manifest_hash:
             tool_entry["manifest_hash"] = manifest_hash
@@ -140,7 +150,8 @@ def main() -> int:
 
     catalog = {
         "catalog_version": datetime.utcnow().strftime("%Y.%m.%d"),
-        "tools": tools
+        "release_tag": release_tag,
+        "tools": tools,
     }
 
     (dist_dir / "catalog.json").write_text(json.dumps(catalog, ensure_ascii=False, indent=2), encoding="utf-8")

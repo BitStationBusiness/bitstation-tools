@@ -2,7 +2,7 @@
   "manifest_version": "1.0",
   "tool_id": "z-image-turbo",
   "tool_version": "0.8.6",
-  "created_at": "2026-02-20T19:14:01.976838+00:00",
+  "created_at": "2026-02-20T19:31:28.090739+00:00",
   "files": [
     {
       "path": ".gitignore",
@@ -93,7 +93,7 @@
     },
     {
       "path": "manifest.json",
-      "sha256": "20bee2736e7a98dbcca6558237c4a6f88a27e24d2a4e8c2611150f3fe091a35f",
+      "sha256": "617e06f712dd6b69c6949f1912fc6ed46eb55f54d40e73f019717ebba7af7e89",
       "size": 6976,
       "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.8.6/files/manifest.json"
     },
@@ -177,5 +177,5 @@
       "cache/**/*.bin"
     ]
   },
-  "manifest_hash": "b57a412a6b51b6945c4b0e135cd50f000e222c78f9cec8336205fa12f63aaa4c"
+  "manifest_hash": "c826bad7b3aa9e117e959d25bc63b61a6b1c8269493c58292e808f17b539cc08"
 }
