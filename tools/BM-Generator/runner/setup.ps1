@@ -13,14 +13,14 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$ScriptDir  = Split-Path -Parent $MyInvocation.MyCommand.Path
-$ToolDir    = Split-Path -Parent $ScriptDir
-$VenvDir    = Join-Path $ToolDir ".venv"
-$ReqFile    = Join-Path $ToolDir "requirements.txt"
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ToolDir = Split-Path -Parent $ScriptDir
+$VenvDir = Join-Path $ToolDir ".venv"
+$ReqFile = Join-Path $ToolDir "requirements.txt"
 $BackendReq = Join-Path $ToolDir "backend\requirements.txt"
 $VendorWheels = Join-Path $ToolDir "vendor\wheels"
 $VendorModels = Join-Path $ToolDir "vendor\models"
-$TorchCache   = Join-Path $ToolDir "vendor\torch_cache"
+$TorchCache = Join-Path $ToolDir "vendor\torch_cache"
 
 Write-Host "=== BM-Generator Setup ===" -ForegroundColor Cyan
 Write-Host "Tool root : $ToolDir"
@@ -29,9 +29,11 @@ Write-Host "Venv      : $VenvDir"
 # Determine which requirements file to use (root takes precedence)
 if (Test-Path $ReqFile) {
     $RequirementsFile = $ReqFile
-} elseif (Test-Path $BackendReq) {
+}
+elseif (Test-Path $BackendReq) {
     $RequirementsFile = $BackendReq
-} else {
+}
+else {
     Write-Error "requirements.txt not found at $ReqFile or $BackendReq"
     exit 1
 }
@@ -40,7 +42,8 @@ Write-Host "Reqs file : $RequirementsFile"
 $OfflineMode = Test-Path $VendorWheels
 if ($OfflineMode) {
     Write-Host "Offline mode: vendor/wheels detected" -ForegroundColor Green
-} else {
+}
+else {
     Write-Host "Online mode: vendor/wheels not found, will install from PyPI" -ForegroundColor Yellow
 }
 
@@ -51,7 +54,8 @@ if ([string]::IsNullOrWhiteSpace($PythonCmd)) { $PythonCmd = "python" }
 try {
     $pyVersion = & "$PythonCmd" --version 2>&1
     Write-Host "Python: $pyVersion" -ForegroundColor Green
-} catch {
+}
+catch {
     Write-Error "Python not found. Install Python 3.10+ and add to PATH."
     exit 1
 }
@@ -72,7 +76,7 @@ if (-not (Test-Path $VenvDir)) {
 }
 
 $VenvPython = Join-Path $VenvDir "Scripts\python.exe"
-$VenvPip    = Join-Path $VenvDir "Scripts\pip.exe"
+$VenvPip = Join-Path $VenvDir "Scripts\pip.exe"
 
 if (-not (Test-Path $VenvPython)) {
     Write-Error "Venv python not found at: $VenvPython"
@@ -100,7 +104,8 @@ if ($OfflineMode) {
             exit 1
         }
     }
-} else {
+}
+else {
     # Online: install core deps first
     Write-Host "Installing core dependencies (pydantic, mutagen, pydub)..." -ForegroundColor Cyan
     & "$VenvPip" install pydantic mutagen pydub --quiet
@@ -121,7 +126,8 @@ if ($OfflineMode) {
                 Write-Host "NVIDIA GPU detected" -ForegroundColor Green
             }
         }
-    } catch { }
+    }
+    catch { }
 
     if (-not $hasNvidia) {
         try {
@@ -132,11 +138,13 @@ if ($OfflineMode) {
                     $hasNvidia = $true
                     Write-Host "NVIDIA GPU detected (WMI)" -ForegroundColor Green
                 }
-            } else {
+            }
+            else {
                 Stop-Job $job -Force | Out-Null
             }
             Remove-Job $job -Force -ErrorAction SilentlyContinue | Out-Null
-        } catch { }
+        }
+        catch { }
     }
 
     # Install PyTorch
@@ -147,7 +155,8 @@ if ($OfflineMode) {
             Write-Host "CUDA torch failed, falling back to CPU..." -ForegroundColor Yellow
             & "$VenvPip" install torch torchaudio --quiet
         }
-    } else {
+    }
+    else {
         Write-Host "Installing PyTorch (CPU)..." -ForegroundColor Cyan
         & "$VenvPip" install torch torchaudio --quiet
     }
@@ -233,7 +242,8 @@ if ($LASTEXITCODE -ne 0) {
 $DemucsExe = Join-Path $VenvDir "Scripts\demucs.exe"
 if (Test-Path $DemucsExe) {
     Write-Host "  demucs.exe: found" -ForegroundColor Green
-} else {
+}
+else {
     Write-Host "  demucs.exe: NOT found (will use python -m demucs as fallback)" -ForegroundColor Yellow
 }
 

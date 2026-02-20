@@ -18,7 +18,7 @@ from typing import Dict, List, Any, Optional
 from urllib.parse import quote
 
 # Scopes explícitos (según recomendación)
-EXCLUDE_NAMES = {".git", "__pycache__", ".venv", "venv", "dist", ".pytest_cache", "node_modules", "models"}
+EXCLUDE_NAMES = {".git", "__pycache__", ".venv", "venv", "dist", ".pytest_cache", "node_modules", "models", "output", "temp", "uploads"}
 EXCLUDE_PATTERNS = {"*.pyc", ".DS_Store", "Thumbs.db", "*.tmp", "*.gguf", "*.safetensors", "*.bin", "*.pth", "*.ckpt"}
 
 # IMPORTANTE: Los modelos/pesos DEBEN estar en el manifest para garantizar consistencia
