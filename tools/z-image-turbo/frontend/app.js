@@ -540,6 +540,11 @@
     }
   });
 
+  // Ensure mouse wheel scrolling works in WebView2
+  chat.addEventListener('wheel', (e) => {
+    chat.scrollTop += e.deltaY;
+  }, { passive: true });
+
   function scrollToBottom() { requestAnimationFrame(() => { chat.scrollTop = chat.scrollHeight; }); }
   function removeEl(el) { if (el && el.parentNode) el.parentNode.removeChild(el); }
 })();

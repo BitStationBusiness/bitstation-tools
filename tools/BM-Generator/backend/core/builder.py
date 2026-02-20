@@ -4,14 +4,14 @@ import json
 import zipfile
 import os
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 from datetime import datetime
 
-from .demucs_handler import run_demucs_separation
-from .metadata_handler import AlbumMetadata, SongMetadata
+from .demucs_handler import separate_track
+from .metadata_handler import AlbumMetadata
 
-# Configure logging
 logger = logging.getLogger(__name__)
+
 
 class BMBuilder:
     def __init__(self, output_dir: Path, temp_dir: Path):
@@ -20,112 +20,128 @@ class BMBuilder:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.temp_dir.mkdir(parents=True, exist_ok=True)
 
-    def build_album(self, album_data: AlbumMetadata, job_id: str, progress_callback=None, model=None, device=None):
+    @staticmethod
+    def _safe_name(name: str) -> str:
+        return "".join(c for c in name if c.isalnum() or c in (" ", "-", "_")).strip()
+
+    def build_album(
+        self,
+        album_data: AlbumMetadata,
+        job_id: str,
+        progress_callback=None,
+        **kwargs,
+    ) -> str:
         """
-        Builds the .bm file from the provided album data.
-        If model/device are provided, uses separate_audio (fast/persistent). 
-        Otherwise uses run_demucs_separation (slow/one-off).
+        Build a .bm bundle from album metadata.
+        Each track is separated into 4 stems (drums, bass, vocals, other) via Demucs CLI.
         """
-        try:
-            # 1. Create Directory Structure
-            album_name_safe = "".join([c for c in album_data.album_name if c.isalnum() or c in (' ', '-', '_')]).strip()
-            base_dir = self.temp_dir / job_id / album_name_safe
-            if base_dir.exists():
-                shutil.rmtree(base_dir)
-            
-            # Use separate_audio if model is provided, else import standard one
-            from .demucs_handler import run_demucs_separation, separate_audio
-            base_dir.mkdir(parents=True)
+        album_safe = self._safe_name(album_data.album_name)
+        base_dir = self.temp_dir / job_id / album_safe
+        if base_dir.exists():
+            shutil.rmtree(base_dir)
+        base_dir.mkdir(parents=True)
 
-            songs_dir = base_dir / "Canciones"
-            songs_dir.mkdir()
+        songs_dir = base_dir / "Canciones"
+        songs_dir.mkdir()
 
-            # 2. Process Songs
-            total_songs = len(album_data.songs)
-            for index, song in enumerate(album_data.songs):
-                if progress_callback:
-                    progress_callback(job_id, 10 + int((index / total_songs) * 60), f"Processing {song.title}...")
+        temp_demucs_out = self.temp_dir / job_id / "_demucs_raw"
+        temp_demucs_out.mkdir(parents=True, exist_ok=True)
 
-                # Create song directory
-                # Handle Disc Number if > 1
-                if album_data.total_discs > 1:
-                     # Parse disc number "1/2" -> 1
-                    try:
-                        disc_num = int(song.disc_number.split('/')[0])
-                    except:
-                        disc_num = 1
-                    
-                    song_folder_name = f"CD{disc_num} - {song.track_number} - {song.title}"
-                else:
-                    song_folder_name = f"{song.track_number} - {song.title}"
-                
-                song_safe_name = "".join([c for c in song_folder_name if c.isalnum() or c in (' ', '-', '_')]).strip()
-                song_dir = songs_dir / song_safe_name
-                song_dir.mkdir()
+        total_songs = len(album_data.songs)
+        track_stem_info = []
 
-                # Copy Original File
-                original_path = Path(song.path)
-                dest_path = song_dir / original_path.name
-                shutil.copy2(original_path, dest_path)
-
-                # TODO: Handle .lrc file if provided (user didn't specify input for lrc in first pass, but good to have placeholder)
-                # lrc_path = song_dir / f"{song.title}.lrc"
-                # if lrc_exists: shutil.copy(lrc, lrc_path)
-
-                # Create BSM folder (BitStation Music Stems)
-                bsm_dir = song_dir / "BSM"
-                bsm_dir.mkdir()
-                
-                # Run Demucs
-                if progress_callback:
-                    progress_callback(job_id, 10 + int((index / total_songs) * 60) + 5, f"Separating stems for {song.title}...")
-                
-                # We need to pass the full path to the song file in the new directory
-                song_file_path_in_album = song_dir / Path(song.path).name
-                
-                if model and device:
-                     separate_audio(song_file_path_in_album, bsm_dir, model, device, job_id, progress_callback)
-                else:
-                     run_demucs_separation(song_file_path_in_album, bsm_dir, job_id, progress_callback) 
-
-                # Create Song Info (optional, but good for individual metadata)
-                song_info = song.dict()
-                with open(song_dir / "song_info.json", "w", encoding="utf-8") as f:
-                    json.dump(song_info, f, indent=4)
-
-            # 3. Handle Cover Art
-            if album_data.cover_image_path:
-                cover_src = Path(album_data.cover_image_path)
-                cover_dest = base_dir / f"{album_name_safe}{cover_src.suffix}"
-                shutil.copy2(cover_src, cover_dest)
-            
-            # 4. Generate Album Metadata
-            # Create a comprehensive metadata file for the player
-            album_info = album_data.dict()
-            with open(base_dir / "album_info.json", "w", encoding="utf-8") as f:
-                json.dump(album_info, f, indent=4)
-
-            # 5. Zip into .bm file
+        for idx, song in enumerate(album_data.songs):
+            base_pct = 5 + int((idx / total_songs) * 75)
             if progress_callback:
-                progress_callback(job_id, 90, "Packaging .bm file...")
-            
-            bm_file_path = self.output_dir / f"{album_name_safe}.bm"
-            with zipfile.ZipFile(bm_file_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                for root, dirs, files in os.walk(base_dir):
-                    for file in files:
-                        file_path = Path(root) / file
-                        arcname = file_path.relative_to(base_dir)
-                        zipf.write(file_path, arcname)
+                progress_callback(job_id, base_pct, f"Processing {song.title}...")
+
+            if album_data.total_discs > 1:
+                try:
+                    disc_num = int(song.disc_number.split("/")[0])
+                except Exception:
+                    disc_num = 1
+                folder_name = f"CD{disc_num} - {song.track_number} - {song.title}"
+            else:
+                folder_name = f"{song.track_number} - {song.title}"
+
+            song_safe = self._safe_name(folder_name)
+            song_dir = songs_dir / song_safe
+            song_dir.mkdir()
+
+            original = Path(song.path)
+            dest = song_dir / original.name
+            shutil.copy2(original, dest)
+
+            bm_stems_dir = song_dir / "BM"
+            bm_stems_dir.mkdir()
 
             if progress_callback:
-                progress_callback(job_id, 100, f"Created {bm_file_path.name}")
+                progress_callback(
+                    job_id, base_pct + 2,
+                    f"Separating stems for {song.title}..."
+                )
 
-            return str(bm_file_path)
+            stems = separate_track(
+                input_path=dest,
+                final_stems_dir=bm_stems_dir,
+                temp_demucs_out=temp_demucs_out,
+                job_id=f"{job_id}_t{idx}",
+                progress_callback=progress_callback,
+            )
 
-        except Exception as e:
-            logger.error(f"Builder error: {e}")
-            raise e
-        finally:
-            # Cleanup temp dir for this job
-            # shutil.rmtree(self.temp_dir / job_id, ignore_errors=True)
-            pass
+            track_stem_info.append({
+                "title": song.title,
+                "stems": list(stems.keys()),
+                "stems_dir": str(bm_stems_dir.relative_to(base_dir)),
+            })
+
+            song_info = song.dict()
+            song_info["stems_dir"] = "BM"
+            with open(song_dir / "song_info.json", "w", encoding="utf-8") as f:
+                json.dump(song_info, f, indent=4)
+
+        # Cover art
+        if album_data.cover_image_path:
+            cover_src = Path(album_data.cover_image_path)
+            if cover_src.exists():
+                shutil.copy2(cover_src, base_dir / f"{album_safe}{cover_src.suffix}")
+
+        # Album manifest (bm.json)
+        manifest = {
+            "format": "bm",
+            "version": "1.0",
+            "album_artist": album_data.album_artist,
+            "album_name": album_data.album_name,
+            "year": album_data.year,
+            "genre": album_data.genre,
+            "total_tracks": album_data.total_tracks,
+            "total_discs": album_data.total_discs,
+            "stems_per_track": ["drums", "bass", "vocals", "other"],
+            "created_at": datetime.utcnow().isoformat(),
+            "tracks": track_stem_info,
+        }
+        with open(base_dir / "bm.json", "w", encoding="utf-8") as f:
+            json.dump(manifest, f, indent=4)
+
+        # Legacy album_info.json for compatibility
+        with open(base_dir / "album_info.json", "w", encoding="utf-8") as f:
+            json.dump(album_data.dict(), f, indent=4)
+
+        # Package into .bm (ZIP)
+        if progress_callback:
+            progress_callback(job_id, 92, "Packaging .bm file...")
+
+        bm_path = self.output_dir / f"{album_safe}.bm"
+        with zipfile.ZipFile(bm_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            for root, _dirs, files in os.walk(base_dir):
+                for fname in files:
+                    fpath = Path(root) / fname
+                    zf.write(fpath, fpath.relative_to(base_dir))
+
+        if progress_callback:
+            progress_callback(job_id, 100, f"Created {bm_path.name}")
+
+        # Cleanup
+        shutil.rmtree(self.temp_dir / job_id, ignore_errors=True)
+
+        return str(bm_path)

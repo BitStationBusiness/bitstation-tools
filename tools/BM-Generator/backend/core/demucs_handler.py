@@ -1,163 +1,150 @@
 import logging
-import torch
-import torchaudio
-import torchaudio.functional as F
-import numpy as np
+import subprocess
+import shutil
+import hashlib
+import sys
 from pathlib import Path
-from demucs_infer import pretrained, apply, audio
+from typing import Dict, Optional, Callable
 
-# Configure logging
 logger = logging.getLogger(__name__)
 
 DEMUCS_MODEL = "htdemucs"
 DEMUCS_STEMS = ["drums", "bass", "other", "vocals"]
 
-def check_cuda_availability():
-    """Checks if CUDA is available and returns GPU info."""
+
+def check_cuda_availability() -> tuple[bool, Optional[str]]:
     try:
+        import torch
         if torch.cuda.is_available() and torch.cuda.device_count() > 0:
-            gpu_name = torch.cuda.get_device_name(0)
-            return True, gpu_name
+            return True, torch.cuda.get_device_name(0)
         return False, None
     except ImportError:
         return False, None
 
 
-def load_demucs_model(device_str: str = "cuda"):
+def _get_demucs_executable() -> str:
+    """Find demucs executable inside the active venv or PATH."""
+    venv = Path(sys.executable).parent
+    for name in ("demucs.exe", "demucs"):
+        candidate = venv / name
+        if candidate.exists():
+            return str(candidate)
+    return "demucs"
+
+
+def run_demucs_cli(
+    input_path: Path,
+    output_dir: Path,
+    device: str = "cuda",
+) -> Path:
     """
-    Loads the Demucs model and returns it.
+    Run Demucs via CLI and return the directory containing the 4 stems.
+    Command: demucs -n htdemucs -o "<output_dir>" "<input_path>"
     """
-    try:
-        if device_str == "cuda" and torch.cuda.is_available() and torch.cuda.device_count() > 0:
-            device = torch.device("cuda:0")
-            torch.cuda.set_device(0)
-            gpu_name = torch.cuda.get_device_name(0)
-            logger.info(f"✅ Loading model on GPU: {gpu_name}")
+    exe = _get_demucs_executable()
+    cmd = [
+        exe,
+        "-n", DEMUCS_MODEL,
+        "-o", str(output_dir),
+        "--device", device,
+        str(input_path),
+    ]
+
+    logger.info(f"Running Demucs CLI: {' '.join(cmd)}")
+
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        timeout=3600,
+    )
+
+    if result.returncode != 0:
+        stderr = result.stderr or "(no stderr)"
+        raise RuntimeError(f"Demucs failed (code {result.returncode}): {stderr[-500:]}")
+
+    # Demucs writes to: <output_dir>/htdemucs/<stem_name>/
+    separated_dir = output_dir / DEMUCS_MODEL / input_path.stem
+    if not separated_dir.exists():
+        candidates = list((output_dir / DEMUCS_MODEL).iterdir()) if (output_dir / DEMUCS_MODEL).exists() else []
+        if len(candidates) == 1:
+            separated_dir = candidates[0]
         else:
-            device = torch.device("cpu")
-            logger.info("⚠️ Loading model on CPU")
-
-        model = pretrained.get_model(DEMUCS_MODEL)
-        model.to(device)
-        model.eval()
-        return model, device
-    except Exception as e:
-        logger.error(f"Failed to load model: {e}")
-        raise e
-
-def separate_audio(input_path: Path, output_path: Path, model, device, job_id: str = "task", progress_callback=None):
-    """
-    Separates audio using a pre-loaded model.
-    """
-    try:
-        if progress_callback:
-            progress_callback(job_id, 20, "Loading audio...")
-
-        # Load audio file
-        waveform = None
-        sr = None
-        
-        # Try loading with torchaudio
-        try:
-            waveform, sr = torchaudio.load(str(input_path))
-        except Exception as e1:
-            logger.warning(f"torchaudio failed: {e1}")
-            # Fallback to pydub
-            try:
-                from pydub import AudioSegment
-                audio_segment = AudioSegment.from_file(str(input_path))
-                audio_segment = audio_segment.set_frame_rate(44100)
-                samples = np.array(audio_segment.get_array_of_samples())
-                
-                if audio_segment.sample_width == 1:
-                    samples = samples.astype(np.float32) / 128.0 - 1.0
-                elif audio_segment.sample_width == 2:
-                    samples = samples.astype(np.float32) / 32768.0
-                elif audio_segment.sample_width == 4:
-                    samples = samples.astype(np.float32) / 2147483648.0
-                
-                if audio_segment.channels == 2:
-                    samples = samples.reshape(-1, 2).T
-                else:
-                    samples = samples.reshape(1, -1)
-                
-                waveform = torch.from_numpy(samples)
-                sr = audio_segment.frame_rate
-            except Exception as e2:
-                raise Exception(f"Failed to load audio: {e2}")
-
-        if waveform is None:
-             raise Exception("Failed to load audio file.")
-
-        # Ensure correct dimensions
-        if waveform.dim() == 1:
-            waveform = waveform.unsqueeze(0)
-        if waveform.shape[0] == 1:
-            waveform = waveform.repeat(2, 1)
-
-        # Resample if needed
-        target_sr = model.samplerate
-        if sr != target_sr:
-            if progress_callback:
-                progress_callback(job_id, 25, f"Resampling {sr}Hz -> {target_sr}Hz...")
-            waveform = F.resample(waveform, sr, target_sr)
-            sr = target_sr
-
-        # Normalize
-        ref = waveform.mean(0)
-        waveform = (waveform - ref.mean()) / (ref.std() + 1e-8)
-        wav = waveform.unsqueeze(0).to(device)
-
-        if progress_callback:
-            progress_callback(job_id, 30, f"Separating audio...")
-
-        # Run separation
-        with torch.no_grad():
-            sources = apply.apply_model(
-                model,
-                wav,
-                device=device,
-                progress=False,
+            raise FileNotFoundError(
+                f"Expected Demucs output at {separated_dir}, found: {[str(c) for c in candidates]}"
             )
 
-        if progress_callback:
-            progress_callback(job_id, 80, "Saving stems...")
+    return separated_dir
 
-        # Save stems
-        source_names = model.sources
-        samplerate = model.samplerate
-        
-        output_path.mkdir(parents=True, exist_ok=True)
-        stem_paths = {}
 
-        for i, stem_name in enumerate(source_names):
-            if stem_name in DEMUCS_STEMS:
-                stem_audio = sources[0, i]
-                # Denormalize
-                stem_audio = stem_audio * ref.std() + ref.mean()
-                
-                stem_file = output_path / f"{stem_name}.wav"
-                audio.save_audio(
-                    stem_audio.cpu(),
-                    str(stem_file),
-                    samplerate=samplerate,
-                )
-                stem_paths[stem_name] = str(stem_file)
-
-        if progress_callback:
-            progress_callback(job_id, 100, "Separation complete!")
-            
-        return stem_paths
-
-    except Exception as e:
-        logger.error(f"Demucs separation error: {e}")
-        raise e
-
-def run_demucs_separation(input_path: Path, output_path: Path, job_id: str, progress_callback=None):
+def normalize_stems(
+    demucs_output_dir: Path,
+    final_stems_dir: Path,
+) -> Dict[str, str]:
     """
-    Legacy wrapper for one-off separation (loads and unloads model).
+    Move/rename stems from Demucs output to the final directory,
+    ensuring exactly drums.wav, bass.wav, vocals.wav, other.wav exist.
+    Returns {stem_name: path}.
     """
-    use_cuda = torch.cuda.is_available() and torch.cuda.device_count() > 0
-    model, device = load_demucs_model(device_str="cuda" if use_cuda else "cpu")
-    return separate_audio(input_path, output_path, model, device, job_id, progress_callback)
+    final_stems_dir.mkdir(parents=True, exist_ok=True)
+    stem_paths: Dict[str, str] = {}
 
+    for stem in DEMUCS_STEMS:
+        src = demucs_output_dir / f"{stem}.wav"
+        dst = final_stems_dir / f"{stem}.wav"
+        if not src.exists():
+            raise FileNotFoundError(f"Missing stem: {src}")
+        shutil.move(str(src), str(dst))
+        stem_paths[stem] = str(dst)
+
+    return stem_paths
+
+
+def compute_stem_hashes(stems_dir: Path) -> Dict[str, str]:
+    """Optional SHA-256 hashes for traceability."""
+    hashes = {}
+    for stem in DEMUCS_STEMS:
+        f = stems_dir / f"{stem}.wav"
+        if f.exists():
+            h = hashlib.sha256()
+            with open(f, "rb") as fh:
+                for chunk in iter(lambda: fh.read(65536), b""):
+                    h.update(chunk)
+            hashes[stem] = h.hexdigest()
+    return hashes
+
+
+def separate_track(
+    input_path: Path,
+    final_stems_dir: Path,
+    temp_demucs_out: Path,
+    job_id: str = "task",
+    progress_callback: Optional[Callable] = None,
+) -> Dict[str, str]:
+    """
+    Full pipeline: run Demucs CLI -> normalize stems -> return paths.
+    """
+    has_cuda, gpu_name = check_cuda_availability()
+    device = "cuda" if has_cuda else "cpu"
+    if progress_callback:
+        hw = f"GPU: {gpu_name}" if has_cuda else "CPU"
+        progress_callback(job_id, 20, f"Separating with Demucs ({hw})...")
+
+    raw_dir = run_demucs_cli(input_path, temp_demucs_out, device=device)
+
+    if progress_callback:
+        progress_callback(job_id, 80, "Normalizing stems...")
+
+    stems = normalize_stems(raw_dir, final_stems_dir)
+
+    if progress_callback:
+        progress_callback(job_id, 90, "Computing hashes...")
+
+    hashes = compute_stem_hashes(final_stems_dir)
+    for stem, h in hashes.items():
+        logger.info(f"  {stem}.wav sha256={h[:16]}...")
+
+    if progress_callback:
+        progress_callback(job_id, 100, "Separation complete!")
+
+    return stems

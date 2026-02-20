@@ -52,7 +52,16 @@
     zone.addEventListener('drop', (e) => {
       e.preventDefault();
       zone.classList.remove('dragover');
+      // WebView2 does not expose full file paths via drag-and-drop for security.
+      // Show user feedback to use the button instead.
+      const dt = e.dataTransfer;
+      if (dt && dt.files && dt.files.length > 0) {
+        const names = Array.from(dt.files).map(f => f.name).join(', ');
+        alert('Para agregar archivos, usa el boton "Seleccionar archivos".\n\nArchivos detectados: ' + names);
+      }
     });
+    // Also make the zone clickable
+    zone.addEventListener('click', () => pickAudioFiles());
   }
 
   window.pickAudioFiles = async function () {
@@ -157,12 +166,17 @@
       disc_number: parseInt(document.getElementById('track_disc_' + i).value) || 1,
     }));
 
+    const trackCount = tracks.length;
+    const maxDisc = Math.max(1, ...tracks.map(t => t.disc_number || 1));
     return {
       album_artist: document.getElementById('albumArtist').value,
-      title: document.getElementById('albumTitle').value,
+      album_name: document.getElementById('albumTitle').value,
       year: document.getElementById('albumYear').value,
       genre: document.getElementById('albumGenre').value,
-      tracks,
+      release_date: document.getElementById('albumYear').value,
+      total_tracks: trackCount,
+      total_discs: maxDisc,
+      songs: tracks,
     };
   }
 
@@ -176,7 +190,8 @@
       '<div><span class="label">&Aacute;lbum:</span> <span class="value">' + escapeHtml(data.title) + '</span></div>' +
       '<div><span class="label">A&ntilde;o:</span> <span class="value">' + escapeHtml(data.year) + '</span></div>' +
       '<div><span class="label">G&eacute;nero:</span> <span class="value">' + escapeHtml(data.genre) + '</span></div>' +
-      '<div><span class="label">Pistas:</span> <span class="value">' + data.tracks.length + '</span></div>';
+      '<div><span class="label">Pistas:</span> <span class="value">' + data.tracks.length + '</span></div>' +
+      '<div style="margin-top:8px;font-size:12px;color:var(--muted)">Cada pista sera separada en 4 stems: drums, bass, vocals, other (Demucs htdemucs)</div>';
   }
 
   window.startBuild = async function () {
@@ -191,7 +206,7 @@
     const buildStatus = document.getElementById('buildStatus');
     progressBar.style.display = 'block';
     progressFill.style.width = '10%';
-    buildStatus.textContent = 'Iniciando construccion del .bsm...';
+    buildStatus.textContent = 'Iniciando construccion del .bm...';
 
     try {
       const albumData = gatherAlbumData();
