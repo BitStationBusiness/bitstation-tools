@@ -14,19 +14,20 @@ $ScriptDir  = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ToolDir    = Split-Path -Parent $ScriptDir
 $BackendDir = Join-Path $ToolDir "backend"
 $VenvDir    = Join-Path $ToolDir ".venv"
-$ReqFile    = Join-Path $BackendDir "requirements.txt"
 
 # Auto-setup if venv missing
-if (-not (Test-Path $VenvDir)) {
+if (-not (Test-Path (Join-Path $VenvDir "Scripts\python.exe"))) {
+    Write-Host "[BM-Generator] Venv not found, running setup..."
     $SetupScript = Join-Path $ScriptDir "setup.ps1"
     if (Test-Path $SetupScript) {
         & $SetupScript
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "[BM-Generator] Setup failed with exit code $LASTEXITCODE"
+            exit 1
+        }
     } else {
-        Write-Host "Creating virtual environment..."
-        python -m venv $VenvDir
-        $VenvPip = Join-Path $VenvDir "Scripts\pip.exe"
-        & $VenvPip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121 --quiet 2>$null
-        & $VenvPip install -r $ReqFile --quiet
+        Write-Error "[BM-Generator] setup.ps1 not found"
+        exit 1
     }
 }
 

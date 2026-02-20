@@ -566,13 +566,17 @@
     }
   });
 
-  // Force mouse wheel scrolling in WebView2 (intercept at document level)
+  // WebView2 scroll fix: intercept ALL wheel events and forward to chat
   document.addEventListener('wheel', (e) => {
-    if (chat.contains(e.target) || e.target === chat) {
-      e.preventDefault();
-      chat.scrollTop += e.deltaY;
-    }
-  }, { passive: false });
+    e.preventDefault();
+    e.stopPropagation();
+    chat.scrollTop += e.deltaY;
+  }, { passive: false, capture: true });
+
+  // Ensure chat is focusable and auto-focuses for keyboard/scroll events
+  chat.setAttribute('tabindex', '0');
+  chat.focus();
+  chat.addEventListener('mouseenter', () => chat.focus());
 
   function scrollToBottom() { requestAnimationFrame(() => { chat.scrollTop = chat.scrollHeight; }); }
   function removeEl(el) { if (el && el.parentNode) el.parentNode.removeChild(el); }

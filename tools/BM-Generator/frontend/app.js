@@ -17,6 +17,13 @@
     setupDragDrop();
   });
 
+  // Called from Flutter DropTarget when files are dragged onto the WebView
+  window.onFilesDropped = function (paths) {
+    if (!Array.isArray(paths) || paths.length === 0) return;
+    selectedFiles = paths;
+    renderFileList();
+  };
+
   // --- Navigation ---
 
   window.goToStep = function (step) {
@@ -52,15 +59,7 @@
     zone.addEventListener('drop', (e) => {
       e.preventDefault();
       zone.classList.remove('dragover');
-      // WebView2 does not expose full file paths via drag-and-drop for security.
-      // Show user feedback to use the button instead.
-      const dt = e.dataTransfer;
-      if (dt && dt.files && dt.files.length > 0) {
-        const names = Array.from(dt.files).map(f => f.name).join(', ');
-        alert('Para agregar archivos, usa el boton "Seleccionar archivos".\n\nArchivos detectados: ' + names);
-      }
     });
-    // Also make the zone clickable
     zone.addEventListener('click', () => pickAudioFiles());
   }
 
