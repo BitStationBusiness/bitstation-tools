@@ -14,7 +14,7 @@ const stemSt = {};
 STEMS.forEach(s => { gains[s]=null; analysers[s]=null; sources[s]=null; analyserData[s]=null;
   stemSt[s]={rms:0,low:0,mid:0,high:0,peakDecay:0,peakValue:0,lowEnd:0,midEnd:0}; });
 
-let library = [];          // [{title, artist, tracks[], coverUrl, zipRef, fileName}]
+let library = [];
 let curAlbumIdx = -1;
 let curTrackIdx = 0;
 let playlist = [], plPos = 0;
@@ -23,22 +23,46 @@ let preloadBufs = null, preloadKey = null;
 let shuffleOn = false, repeatMode = 'none';
 let lyrics = [], lastLyIdx = -2;
 let vol = 0.7;
-let activeTab = 'library';
-let albumDetailIdx = -1; // -1 = not viewing album detail
-let searchQuery = '';
+let activeTab = 'biblioteca';
+let albumDetailIdx = -1;
 let karaokeOn = false;
+let karaokeInline = false;
 
-// WebGL
+let favorites = {};
+let playCounts = {};
+let songsFilter = 'all';
+let savedDirPath = '';
+
+// WebGL — overlay
 let gl=null, prog=null, qBuf=null, pLoc=-1;
 const uL={};
 let vizT0=0;
+// WebGL — inline
+let glI=null, progI=null, qBufI=null, pLocI=-1;
+const uLI={};
 
 const $=id=>document.getElementById(id);
 
 // ═══ IndexedDB ════════════════════════════════════════════════
-function openDB(){return new Promise((r,j)=>{const q=indexedDB.open('BitMusicDB',1);q.onupgradeneeded=e=>e.target.result.createObjectStore('kv');q.onsuccess=e=>r(e.target.result);q.onerror=e=>j(e.target.error)})}
+function openDB(){return new Promise((r,j)=>{const q=indexedDB.open('BitMusicDB',2);q.onupgradeneeded=e=>{const db=e.target.result;if(!db.objectStoreNames.contains('kv'))db.createObjectStore('kv')};q.onsuccess=e=>r(e.target.result);q.onerror=e=>j(e.target.error)})}
 async function dbPut(k,v){try{const d=await openDB();return new Promise((r,j)=>{const t=d.transaction('kv','readwrite');t.objectStore('kv').put(v,k);t.oncomplete=r;t.onerror=e=>j(e.target.error)})}catch(e){}}
 async function dbGet(k){try{const d=await openDB();return new Promise((r,j)=>{const q=d.transaction('kv').objectStore('kv').get(k);q.onsuccess=e=>r(e.target.result);q.onerror=e=>j(e.target.error)})}catch(e){return null}}
+
+async function loadPersistedData(){
+  try{
+    const dir=await dbGet('bm-dir-path');
+    if(dir) savedDirPath=dir;
+    const favs=await dbGet('bm-favorites');
+    if(favs) favorites=favs;
+    const counts=await dbGet('bm-play-counts');
+    if(counts) playCounts=counts;
+  }catch(e){}
+}
+function saveFavorites(){dbPut('bm-favorites',favorites).catch(()=>{})}
+function savePlayCounts(){dbPut('bm-play-counts',playCounts).catch(()=>{})}
+function saveDirPath(){dbPut('bm-dir-path',savedDirPath).catch(()=>{})}
+
+function trackKey(ai,ti){return `${library[ai]?.fileName||ai}::${ti}`}
 
 // ═══ Audio Engine ═════════════════════════════════════════════
 async function initAudio(){
@@ -78,7 +102,7 @@ async function addFiles(){
       const res = await ToolBridge.pickFiles({extensions:['bm'],multiple:true});
       const paths = res.files || res.paths || [];
       if(!paths.length) return;
-      showLoading('Cargando álbumes...');
+      showLoading('Cargando albumes...');
       for(const p of paths){
         try{
           const urlRes = await ToolBridge.getFileUrl(p);
@@ -96,10 +120,58 @@ async function addFiles(){
   }
 }
 
+async function pickDirectory(){
+  const inShell = typeof ToolBridge!=='undefined' && ToolBridge.isShellMode();
+  if(inShell){
+    try{
+      const res = await ToolBridge.pickFiles({extensions:['bm'],multiple:true,directory:true});
+      const paths = res.files || res.paths || [];
+      if(!paths.length) return;
+      const dir = paths[0].replace(/[/\\][^/\\]+$/,'');
+      savedDirPath=dir;
+      saveDirPath();
+      await loadFromDirectory(paths);
+    }catch(e){if(e.message!=='User cancelled') console.error('pickDir:',e)}
+  } else {
+    $('file-input').click();
+  }
+}
+
+async function loadFromDirectory(paths){
+  if(!paths||!paths.length) return;
+  showLoading('Cargando albumes...');
+  for(const p of paths){
+    try{
+      const inShell = typeof ToolBridge!=='undefined' && ToolBridge.isShellMode();
+      if(inShell){
+        const urlRes = await ToolBridge.getFileUrl(p);
+        if(!urlRes?.ok||!urlRes.url) continue;
+        const resp = await fetch(urlRes.url);
+        const ab = await resp.arrayBuffer();
+        const album = await parseBm(ab, p.split(/[/\\]/).pop());
+        if(album && !library.some(a=>a.fileName===album.fileName)) library.push(album);
+      }
+    }catch(e){console.warn('Load error:',p,e)}
+  }
+  onLibraryChanged();
+}
+
+async function reloadSavedDirectory(){
+  if(!savedDirPath) return;
+  const inShell = typeof ToolBridge!=='undefined' && ToolBridge.isShellMode();
+  if(!inShell) return;
+  try{
+    const res = await ToolBridge.pickFiles({extensions:['bm'],multiple:true,initialDir:savedDirPath,autoSelect:true});
+    const paths = res.files || res.paths || [];
+    if(paths.length) await loadFromDirectory(paths);
+    else renderTab();
+  }catch(e){renderTab()}
+}
+
 async function handleFileInput(e){
   const files = Array.from(e.target.files).filter(f=>f.name.toLowerCase().endsWith('.bm'));
   if(!files.length) return;
-  showLoading('Cargando álbumes...');
+  showLoading('Cargando albumes...');
   for(const f of files){
     try{
       const ab = await f.arrayBuffer();
@@ -144,48 +216,105 @@ function showLoading(msg){
 function switchTab(tab){
   activeTab=tab;
   albumDetailIdx=-1;
-  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===tab));
-  renderTab();
+  document.querySelectorAll('.bnav-tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===tab));
+
+  const ki=$('karaoke-inline');
+  if(tab==='karaoke'){
+    $('content').style.display='none';
+    ki.style.display='block';
+    karaokeInline=true;
+    resizeInlineCanvas();
+    if(!isPlaying) $('ki-no-track').style.display='flex';
+    else $('ki-no-track').style.display='none';
+  }else{
+    $('content').style.display='';
+    ki.style.display='none';
+    karaokeInline=false;
+    renderTab();
+  }
 }
 
 function renderTab(){
   const c=$('content');
-  if(!library.length){
-    c.innerHTML='';
-    $('empty-state')&&($('empty-state').style.display='flex');
-    const es=$('empty-state');
-    if(!es){
-      c.innerHTML=`<div class="empty-state" id="empty-state"><i class="ph ph-music-notes-plus"></i><p>Agrega archivos <strong>.bm</strong> para comenzar</p><button class="btn-accent" id="btn-add-empty"><i class="ph ph-plus"></i> Agregar álbumes</button></div>`;
-      $('btn-add-empty')?.addEventListener('click',addFiles);
-    }
-    return;
-  }
   switch(activeTab){
-    case 'library': renderLibrary(); break;
-    case 'albums': albumDetailIdx>=0 ? renderAlbumDetail(albumDetailIdx) : renderAlbums(); break;
-    case 'search': renderSearch(); break;
+    case 'biblioteca': renderBiblioteca(); break;
+    case 'albums':
+      if(!library.length){renderEmptyLibrary(c);return}
+      albumDetailIdx>=0 ? renderAlbumDetail(albumDetailIdx) : renderAlbums();
+      break;
+    case 'songs':
+      if(!library.length){renderEmptyLibrary(c);return}
+      renderSongs();
+      break;
+    case 'download': renderDownload(); break;
+    default: renderBiblioteca();
   }
 }
 
-function renderLibrary(){
-  const allTracks=[];
-  library.forEach((a,ai)=>a.tracks.forEach((t,ti)=>allTracks.push({...t,_ai:ai,_ti:ti,_album:a})));
+function renderEmptyLibrary(c){
+  c.innerHTML=`<div class="empty-state"><i class="ph ph-music-notes-plus"></i><p>Agrega archivos <strong>.bm</strong> para comenzar</p><button class="btn-accent" id="btn-add-empty"><i class="ph ph-plus"></i> Agregar albumes</button></div>`;
+  $('btn-add-empty')?.addEventListener('click',addFiles);
+}
+
+// ─── Biblioteca ──────────────────────────────────────────────
+function renderBiblioteca(){
   const c=$('content');
-  let html=`<div class="lib-header"><span class="lib-title">Biblioteca</span><span class="lib-count">${allTracks.length} pistas</span></div>`;
-  if(!allTracks.length){html+='<div class="no-results">Sin pistas. Agrega archivos .bm</div>';c.innerHTML=html;return}
-  html+=allTracks.map((t,i)=>trackRow(t,i,t._ai,t._ti)).join('');
+  const totalTracks=library.reduce((s,a)=>s+a.tracks.length,0);
+  const dirDisplay=savedDirPath||null;
+
+  let html=`<div class="bib-section">`;
+  html+=`<div class="lib-header"><span class="lib-title">Biblioteca</span></div>`;
+
+  html+=`<div class="bib-dir">
+    <i class="ph ph-folder-open bib-dir-icon"></i>
+    <div class="bib-dir-info">
+      <div class="bib-dir-label">Directorio</div>
+      <div class="bib-dir-path ${dirDisplay?'':'none'}">${dirDisplay?esc(dirDisplay):'Sin directorio seleccionado'}</div>
+    </div>
+  </div>`;
+
+  html+=`<div class="bib-actions">
+    <button class="btn-accent" id="btn-pick-dir"><i class="ph ph-folder-open"></i> ${savedDirPath?'Cambiar directorio':'Elegir directorio'}</button>
+    <button class="btn-accent" id="btn-add-files"><i class="ph ph-plus"></i> Agregar archivos</button>
+  </div>`;
+
+  if(library.length){
+    html+=`<div class="bib-stats">
+      <div class="bib-stat"><div class="bib-stat-val">${library.length}</div><div class="bib-stat-label">Albumes</div></div>
+      <div class="bib-stat"><div class="bib-stat-val">${totalTracks}</div><div class="bib-stat-label">Pistas</div></div>
+    </div>`;
+
+    html+=`<div class="bib-album-list">`;
+    library.forEach((a,i)=>{
+      html+=`<div class="bib-album" data-i="${i}">
+        <img class="bib-album-art" src="${a.coverUrl||placeholder()}" alt="" loading="lazy">
+        <div class="bib-album-info">
+          <div class="bib-album-name">${esc(a.title)}</div>
+          <div class="bib-album-meta">${esc(a.artist)} · ${a.tracks.length} pistas</div>
+        </div>
+      </div>`;
+    });
+    html+=`</div>`;
+  }else{
+    html+=`<div class="empty-state" style="min-height:30vh"><i class="ph ph-music-notes-plus"></i><p>Selecciona un directorio con archivos <strong>.bm</strong></p></div>`;
+  }
+  html+=`</div>`;
   c.innerHTML=html;
-  c.querySelectorAll('.track').forEach(el=>el.addEventListener('click',()=>{
-    const ai=+el.dataset.ai, ti=+el.dataset.ti;
-    curAlbumIdx=ai; curTrackIdx=ti;
-    buildPlaylist(ai,ti);
-    playTrack(ai,ti);
+
+  $('btn-pick-dir')?.addEventListener('click',pickDirectory);
+  $('btn-add-files')?.addEventListener('click',addFiles);
+  c.querySelectorAll('.bib-album').forEach(el=>el.addEventListener('click',()=>{
+    albumDetailIdx=+el.dataset.i;
+    activeTab='albums';
+    document.querySelectorAll('.bnav-tab').forEach(t=>t.classList.toggle('active',t.dataset.tab==='albums'));
+    renderAlbumDetail(albumDetailIdx);
   }));
 }
 
+// ─── Albums ──────────────────────────────────────────────────
 function renderAlbums(){
   const c=$('content');
-  let html=`<div class="lib-header"><span class="lib-title">Álbumes</span><span class="lib-count">${library.length}</span></div>`;
+  let html=`<div class="lib-header"><span class="lib-title">Albumes</span><span class="lib-count">${library.length}</span></div>`;
   html+='<div class="albums-grid">';
   html+=library.map((a,i)=>`
     <div class="album-card" data-i="${i}">
@@ -205,59 +334,111 @@ function renderAlbumDetail(idx){
   const a=library[idx]; if(!a) return;
   const c=$('content');
   const info=[a.artist,a.year,a.genre,`${a.tracks.length} pistas`].filter(Boolean).join(' · ');
-  let html=`<button class="btn-back-album" id="btn-back-albums"><i class="ph ph-caret-left"></i> Álbumes</button>`;
+  let html=`<button class="btn-back-album" id="btn-back-albums"><i class="ph ph-caret-left"></i> Albumes</button>`;
   html+=`<div class="ad-hero">
     <img class="ad-cover" src="${a.coverUrl||placeholder()}" alt="">
     <div class="ad-meta"><div class="ad-title">${esc(a.title)}</div><div class="ad-artist">${esc(a.artist)}</div><div class="ad-info">${esc(info)}</div>
       <div class="ad-actions"><button class="btn-play-all" id="btn-play-album"><i class="ph-fill ph-play"></i> Reproducir</button></div>
     </div></div>`;
-  html+=a.tracks.map((t,ti)=>trackRow(t,ti,idx,ti)).join('');
+  html+=a.tracks.map((t,ti)=>trackRow(t,ti,idx,ti,true)).join('');
   c.innerHTML=html;
   $('btn-back-albums')?.addEventListener('click',()=>{albumDetailIdx=-1;renderAlbums()});
   $('btn-play-album')?.addEventListener('click',()=>{curAlbumIdx=idx;buildPlaylist(idx,0);playTrack(idx,0)});
-  c.querySelectorAll('.track').forEach(el=>el.addEventListener('click',()=>{
-    const ai=+el.dataset.ai, ti=+el.dataset.ti;
-    curAlbumIdx=ai; curTrackIdx=ti;
-    buildPlaylist(ai,ti);
-    playTrack(ai,ti);
-  }));
+  bindTrackClicks(c);
+  bindFavClicks(c);
 }
 
-function renderSearch(){
+// ─── Songs (Canciones) ──────────────────────────────────────
+function renderSongs(){
   const c=$('content');
-  let html=`<div class="search-wrap"><div class="search-box"><i class="ph ph-magnifying-glass"></i><input id="search-in" type="text" placeholder="Canciones, artistas, álbumes..." value="${esc(searchQuery)}"><button class="search-clear ${searchQuery?'show':''}" id="search-clear"><i class="ph ph-x"></i></button></div></div>`;
-  if(searchQuery){
-    const q=searchQuery.toLowerCase();
-    const res=[];
-    library.forEach((a,ai)=>a.tracks.forEach((t,ti)=>{
-      if((t.title||'').toLowerCase().includes(q)||(t.artist||a.artist||'').toLowerCase().includes(q)||a.title.toLowerCase().includes(q))
-        res.push({...t,_ai:ai,_ti:ti,_album:a});
-    }));
-    if(res.length) html+=res.map((t,i)=>trackRow(t,i,t._ai,t._ti)).join('');
-    else html+=`<div class="no-results">Sin resultados para "${esc(searchQuery)}"</div>`;
+  const allTracks=[];
+  library.forEach((a,ai)=>a.tracks.forEach((t,ti)=>allTracks.push({...t,_ai:ai,_ti:ti,_album:a})));
+
+  let sorted=[...allTracks];
+  if(songsFilter==='favorites'){
+    sorted=sorted.filter(t=>favorites[trackKey(t._ai,t._ti)]);
+  }else if(songsFilter==='az'){
+    sorted.sort((a,b)=>(a.title||'').localeCompare(b.title||''));
+  }else if(songsFilter==='top'){
+    sorted.sort((a,b)=>(playCounts[trackKey(b._ai,b._ti)]||0)-(playCounts[trackKey(a._ai,a._ti)]||0));
+  }
+
+  let html=`<div class="filter-bar">
+    <button class="filter-chip ${songsFilter==='all'?'active':''}" data-f="all"><i class="ph ph-list"></i> Todas</button>
+    <button class="filter-chip ${songsFilter==='favorites'?'active':''}" data-f="favorites"><i class="ph ph-heart"></i> Favoritos</button>
+    <button class="filter-chip ${songsFilter==='az'?'active':''}" data-f="az"><i class="ph ph-sort-ascending"></i> A-Z</button>
+    <button class="filter-chip ${songsFilter==='top'?'active':''}" data-f="top"><i class="ph ph-fire"></i> Top</button>
+  </div>`;
+
+  html+=`<div class="lib-header"><span class="lib-title">Canciones</span><span class="lib-count">${sorted.length} pistas</span></div>`;
+
+  if(!sorted.length){
+    html+=`<div class="no-results">${songsFilter==='favorites'?'Sin favoritos aun':'Sin pistas'}</div>`;
+  }else{
+    html+=sorted.map((t,i)=>trackRow(t,i,t._ai,t._ti,false,true)).join('');
   }
   c.innerHTML=html;
-  const inp=$('search-in');
-  inp?.focus();
-  inp?.addEventListener('input',e=>{searchQuery=e.target.value;renderSearch()});
-  $('search-clear')?.addEventListener('click',()=>{searchQuery='';renderSearch()});
-  c.querySelectorAll('.track').forEach(el=>el.addEventListener('click',()=>{
-    const ai=+el.dataset.ai, ti=+el.dataset.ti;
-    curAlbumIdx=ai; curTrackIdx=ti;
-    buildPlaylist(ai,ti);
-    playTrack(ai,ti);
+
+  c.querySelectorAll('.filter-chip').forEach(el=>el.addEventListener('click',()=>{
+    songsFilter=el.dataset.f;
+    renderSongs();
   }));
+  bindTrackClicks(c);
+  bindFavClicks(c);
 }
 
-function trackRow(t,i,ai,ti){
+// ─── Download ────────────────────────────────────────────────
+function renderDownload(){
+  $('content').innerHTML=`<div class="dl-empty">
+    <i class="ph ph-download-simple"></i>
+    <div class="dl-title">Proximamente</div>
+    <div class="dl-sub">Esta funcion estara disponible pronto</div>
+  </div>`;
+}
+
+// ─── Track Row ──────────────────────────────────────────────
+function trackRow(t,i,ai,ti,inAlbumDetail=false,showFav=false){
   const ms=t.duration_ms||0, m=Math.floor(ms/60000), s=Math.floor((ms%60000)/1000).toString().padStart(2,'0');
   const album=library[ai];
   const playing=ai===curAlbumIdx&&ti===curTrackIdx&&isPlaying;
+  const isFav=favorites[trackKey(ai,ti)];
+  const count=playCounts[trackKey(ai,ti)]||0;
+
+  let favBtn='';
+  if(showFav){
+    favBtn=`<button class="t-fav ${isFav?'on':''}" data-ai="${ai}" data-ti="${ti}"><i class="ph${isFav?'-fill':''} ph-heart"></i></button>`;
+  }
+
   return `<div class="track ${playing?'playing':''}" data-ai="${ai}" data-ti="${ti}">
     <span class="t-num">${playing?'<i class="ph-fill ph-equalizer"></i>':(i+1)}</span>
     <img class="t-art" src="${album?.coverUrl||placeholder()}" alt="" loading="lazy">
-    <div class="t-info"><div class="t-name">${esc(t.title||'Sin título')}</div><div class="t-sub">${esc(t.artist||album?.artist||'')}${activeTab!=='albums'&&album?' · '+esc(album.title):''}</div></div>
+    <div class="t-info"><div class="t-name">${esc(t.title||'Sin titulo')}</div><div class="t-sub">${esc(t.artist||album?.artist||'')}${!inAlbumDetail&&album?' · '+esc(album.title):''}</div></div>
+    ${favBtn}
     <span class="t-dur">${m}:${s}</span></div>`;
+}
+
+function bindTrackClicks(container){
+  container.querySelectorAll('.track').forEach(el=>el.addEventListener('click',e=>{
+    if(e.target.closest('.t-fav')) return;
+    const ai=+el.dataset.ai, ti=+el.dataset.ti;
+    curAlbumIdx=ai; curTrackIdx=ti;
+    buildPlaylist(ai,ti);
+    playTrack(ai,ti);
+  }));
+}
+
+function bindFavClicks(container){
+  container.querySelectorAll('.t-fav').forEach(el=>el.addEventListener('click',e=>{
+    e.stopPropagation();
+    const ai=+el.dataset.ai, ti=+el.dataset.ti;
+    const key=trackKey(ai,ti);
+    if(favorites[key]) delete favorites[key];
+    else favorites[key]=true;
+    saveFavorites();
+    const icon=el.querySelector('i');
+    el.classList.toggle('on');
+    icon.className=favorites[key]?'ph-fill ph-heart':'ph ph-heart';
+  }));
 }
 
 // ═══ Playlist ═════════════════════════════════════════════════
@@ -287,11 +468,17 @@ async function playTrack(ai,ti,auto=true){
   curAlbumIdx=ai; curTrackIdx=ti;
   const album=library[ai], track=album.tracks[ti];
 
-  $('np-title').textContent=track.title||'Sin título';
+  $('np-title').textContent=track.title||'Sin titulo';
   $('np-artist').textContent=track.artist||album.artist||'—';
   $('np-img').src=album.coverUrl||'';
   document.title=`${track.title||'BitMusic'} · BitMusic`;
   highlightPlaying();
+
+  const key=trackKey(ai,ti);
+  playCounts[key]=(playCounts[key]||0)+1;
+  savePlayCounts();
+
+  if(karaokeInline) $('ki-no-track').style.display='none';
 
   await initAudio();
   lyrics=[]; lastLyIdx=-2;
@@ -299,8 +486,8 @@ async function playTrack(ai,ti,auto=true){
   updateLyrics(-1);
 
   dur=0;
-  const key=`${ai}:${ti}`;
-  if(preloadKey===key&&preloadBufs){buffers=preloadBufs;preloadBufs=null;preloadKey=null;STEMS.forEach(s=>{if(buffers[s])dur=Math.max(dur,buffers[s].duration)})}
+  const bKey=`${ai}:${ti}`;
+  if(preloadKey===bKey&&preloadBufs){buffers=preloadBufs;preloadBufs=null;preloadKey=null;STEMS.forEach(s=>{if(buffers[s])dur=Math.max(dur,buffers[s].duration)})}
   else{
     buffers={};
     if(track.stems) await Promise.all(STEMS.map(async s=>{
@@ -308,7 +495,6 @@ async function playTrack(ai,ti,auto=true){
       buffers[s]=await ctx.decodeAudioData(await f.async('arraybuffer'));dur=Math.max(dur,buffers[s].duration);
     }));
   }
-  $('time-total')&&($('time-total').textContent=fmt(dur));
   startOff=0;
   updateMediaSession(track,album);
   preloadNext();
@@ -343,18 +529,33 @@ function setPlayIcon(p){const i=$('btn-play')?.querySelector('i');if(i)i.classNa
 function highlightPlaying(){document.querySelectorAll('.track').forEach(el=>{el.classList.toggle('playing',+el.dataset.ai===curAlbumIdx&&+el.dataset.ti===curTrackIdx&&isPlaying)})}
 
 // ═══ Update Loop ══════════════════════════════════════════════
-function updateLoop(){if(!isPlaying)return;const p=startOff+(ctx.currentTime-startT);if(p>=dur&&dur>0){advance();return}updateUI(p);drawViz();animId=requestAnimationFrame(updateLoop)}
-function updateUI(p){$('p-progress-fill').style.width=`${dur>0?(p/dur)*100:0}%`;if(lyrics.length){let ai=-1;for(let i=0;i<lyrics.length;i++){if(p>=lyrics[i].time)ai=i;else break}updateLyrics(ai)}}
+function updateLoop(){if(!isPlaying)return;const p=startOff+(ctx.currentTime-startT);if(p>=dur&&dur>0){advance();return}updateUI(p);drawViz();drawVizInline();animId=requestAnimationFrame(updateLoop)}
+function updateUI(p){
+  $('p-progress-fill').style.width=`${dur>0?(p/dur)*100:0}%`;
+  if(lyrics.length){
+    let ai=-1;for(let i=0;i<lyrics.length;i++){if(p>=lyrics[i].time)ai=i;else break}
+    updateLyrics(ai);
+  }
+}
 
 // ═══ Lyrics ═══════════════════════════════════════════════════
 function parseLrc(txt){lyrics=[];const re=/\[(\d{2}):(\d{2})\.(\d{2,3})\]/;txt.split('\n').forEach(l=>{const m=re.exec(l);if(!m)return;const t=+m[1]*60+ +m[2]+parseInt(m[3].length===2?m[3]+'0':m[3])/1000;const tx=l.replace(re,'').trim();if(tx)lyrics.push({time:t,text:tx})})}
 function updateLyrics(idx){
   if(idx===lastLyIdx)return;
   const p=idx>0?lyrics[idx-1]?.text||'':'', cu=idx>=0?lyrics[idx]?.text||'':'', n=lyrics[idx+1]?.text||'', n2=lyrics[idx+2]?.text||'';
+
+  // Overlay lyrics
   const lP=$('ly-prev'),lC=$('ly-cur'),lN=$('ly-next'),lN2=$('ly-next2');
   if(lP)lP.textContent=p;
   if(lC){lC.textContent=cu;if(lastLyIdx>=0&&idx>lastLyIdx){lC.classList.add('pop');setTimeout(()=>lC.classList.remove('pop'),300)}}
   if(lN)lN.textContent=n; if(lN2)lN2.textContent=n2;
+
+  // Inline lyrics
+  const lPi=$('ly-prev-i'),lCi=$('ly-cur-i'),lNi=$('ly-next-i'),lN2i=$('ly-next2-i');
+  if(lPi)lPi.textContent=p;
+  if(lCi){lCi.textContent=cu;if(lastLyIdx>=0&&idx>lastLyIdx){lCi.classList.add('pop');setTimeout(()=>lCi.classList.remove('pop'),300)}}
+  if(lNi)lNi.textContent=n; if(lN2i)lN2i.textContent=n2;
+
   lastLyIdx=idx;
 }
 
@@ -383,9 +584,6 @@ function updateMediaSession(t,a){
 function toggleShuffle(){shuffleOn=!shuffleOn;$('btn-shuffle')?.classList.toggle('on',shuffleOn);if(curAlbumIdx>=0)buildPlaylist(curAlbumIdx,curTrackIdx)}
 function toggleRepeat(){const m=['none','all','one'];repeatMode=m[(m.indexOf(repeatMode)+1)%m.length];const b=$('btn-repeat');if(!b)return;b.classList.toggle('on',repeatMode!=='none');b.querySelector('i').className=repeatMode==='one'?'ph ph-repeat-once':'ph ph-repeat'}
 
-// ═══ Volume ═══════════════════════════════════════════════════
-// (No visible volume bar on mobile - use device volume + MediaSession)
-
 // ═══ Utilities ════════════════════════════════════════════════
 function fmt(s){return`${Math.floor(s/60)}:${Math.floor(s%60).toString().padStart(2,'0')}`}
 function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
@@ -399,16 +597,14 @@ function setup(){
   });
 
   $('btn-add')?.addEventListener('click',addFiles);
-  $('btn-add-empty')?.addEventListener('click',addFiles);
   $('file-input')?.addEventListener('change',handleFileInput);
 
-  document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>switchTab(t.dataset.tab)));
+  document.querySelectorAll('.bnav-tab').forEach(t=>t.addEventListener('click',()=>switchTab(t.dataset.tab)));
 
   $('btn-play')?.addEventListener('click',togglePlay);
   $('btn-next')?.addEventListener('click',advance);
   $('btn-prev')?.addEventListener('click',goPrev);
 
-  // Progress bar seek
   const pb=$('p-progress-bar');
   if(pb){
     const doSeek=x=>{if(!dur)return;const r=pb.getBoundingClientRect();seek(Math.max(0,Math.min(1,(x-r.left)/r.width))*dur)};
@@ -416,9 +612,11 @@ function setup(){
     pb.addEventListener('touchstart',e=>doSeek(e.touches[0].clientX),{passive:true});
   }
 
+  // Karaoke overlay (from player bar button)
   $('btn-karaoke')?.addEventListener('click',()=>toggleKaraoke(true));
   $('btn-exit-k')?.addEventListener('click',()=>toggleKaraoke(false));
   $('btn-mixer-k')?.addEventListener('click',()=>$('mixer')?.classList.toggle('open'));
+  $('btn-mixer-inline')?.addEventListener('click',()=>$('mixer')?.classList.toggle('open'));
   $('btn-close-mixer')?.addEventListener('click',()=>$('mixer')?.classList.remove('open'));
 
   // Mixer sliders
@@ -442,7 +640,7 @@ function setup(){
     }
   });
 
-  window.addEventListener('resize',resizeCanvas);
+  window.addEventListener('resize',()=>{resizeCanvas();resizeInlineCanvas()});
 }
 
 // ═══ WebGL Visualizer ═════════════════════════════════════════
@@ -471,16 +669,30 @@ vec3 gr=vec3(dot(f,vec3(.299,.587,.114)));f=mix(gr,f,1.3);
 float di=(fract(sin(dot(uv*u_res,vec2(12.9898,78.233)))*43758.5453)-.5)/128.;
 fc=vec4(clamp(f+di,0.,1.),1.);}`;
 
-function compSh(type,src){const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){console.error(gl.getShaderInfoLog(s));return null}return s}
+function compSh(glCtx,type,src){const s=glCtx.createShader(type);glCtx.shaderSource(s,src);glCtx.compileShader(s);if(!glCtx.getShaderParameter(s,glCtx.COMPILE_STATUS)){console.error(glCtx.getShaderInfoLog(s));return null}return s}
+
+// Overlay GL
 function initGL(){
   const cv=$('karaoke-canvas');if(!cv)return;
   gl=cv.getContext('webgl2')||cv.getContext('webgl');if(!gl)return;
-  const vs=compSh(gl.VERTEX_SHADER,VS),fs=compSh(gl.FRAGMENT_SHADER,FS);if(!vs||!fs)return;
+  const vs=compSh(gl,gl.VERTEX_SHADER,VS),fs=compSh(gl,gl.FRAGMENT_SHADER,FS);if(!vs||!fs)return;
   prog=gl.createProgram();gl.attachShader(prog,vs);gl.attachShader(prog,fs);gl.linkProgram(prog);
   if(!gl.getProgramParameter(prog,gl.LINK_STATUS)){console.error(gl.getProgramInfoLog(prog));return}
   qBuf=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,qBuf);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
   pLoc=gl.getAttribLocation(prog,'a_position');
   ['u_time','u_res','u_mi','u_d','u_b','u_o','u_v','u_dp','u_bp'].forEach(u=>uL[u]=gl.getUniformLocation(prog,u));
+}
+
+// Inline GL
+function initGLInline(){
+  const cv=$('karaoke-canvas-inline');if(!cv)return;
+  glI=cv.getContext('webgl2')||cv.getContext('webgl');if(!glI)return;
+  const vs=compSh(glI,glI.VERTEX_SHADER,VS),fs=compSh(glI,glI.FRAGMENT_SHADER,FS);if(!vs||!fs)return;
+  progI=glI.createProgram();glI.attachShader(progI,vs);glI.attachShader(progI,fs);glI.linkProgram(progI);
+  if(!glI.getProgramParameter(progI,glI.LINK_STATUS)){console.error(glI.getProgramInfoLog(progI));return}
+  qBufI=glI.createBuffer();glI.bindBuffer(glI.ARRAY_BUFFER,qBufI);glI.bufferData(glI.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),glI.STATIC_DRAW);
+  pLocI=glI.getAttribLocation(progI,'a_position');
+  ['u_time','u_res','u_mi','u_d','u_b','u_o','u_v','u_dp','u_bp'].forEach(u=>uLI[u]=glI.getUniformLocation(progI,u));
 }
 
 function resizeCanvas(){
@@ -489,6 +701,17 @@ function resizeCanvas(){
   cv.style.width=window.innerWidth+'px';cv.style.height=window.innerHeight+'px';
   cv.width=Math.round(window.innerWidth*dpr*.5);cv.height=Math.round(window.innerHeight*dpr*.5);
   gl.viewport(0,0,cv.width,cv.height);
+}
+
+function resizeInlineCanvas(){
+  const cv=$('karaoke-canvas-inline');if(!cv)return;
+  if(!glI){initGLInline();if(!glI)return;}
+  const container=$('karaoke-inline');if(!container)return;
+  const dpr=window.devicePixelRatio||1;
+  const w=container.clientWidth, h=container.clientHeight;
+  cv.style.width=w+'px';cv.style.height=h+'px';
+  cv.width=Math.round(w*dpr*.5);cv.height=Math.round(h*dpr*.5);
+  glI.viewport(0,0,cv.width,cv.height);
 }
 
 function drawViz(){
@@ -507,12 +730,30 @@ function drawViz(){
   gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
 }
 
+function drawVizInline(){
+  if(!karaokeInline||!glI||!progI)return;
+  if(!vizT0)vizT0=performance.now();
+  const t=(performance.now()-vizT0)/1000;
+  glI.useProgram(progI);glI.uniform1f(uLI.u_time,t);glI.uniform2f(uLI.u_res,$('karaoke-canvas-inline').width,$('karaoke-canvas-inline').height);
+  const f=STEMS.map(s=>getFeatures(s));
+  glI.uniform1f(uLI.u_mi,(f[0].rms+f[1].rms+f[2].rms+f[3].rms)/4);
+  glI.uniform4f(uLI.u_d,f[0].rms,f[0].low,f[0].mid,f[0].high);
+  glI.uniform4f(uLI.u_b,f[1].rms,f[1].low,f[1].mid,f[1].high);
+  glI.uniform4f(uLI.u_o,f[2].rms,f[2].low,f[2].mid,f[2].high);
+  glI.uniform4f(uLI.u_v,f[3].rms,f[3].low,f[3].mid,f[3].high);
+  glI.uniform1f(uLI.u_dp,f[0].peak?f[0].peakValue:0);glI.uniform1f(uLI.u_bp,f[1].peak?f[1].peakValue:0);
+  glI.bindBuffer(glI.ARRAY_BUFFER,qBufI);glI.enableVertexAttribArray(pLocI);glI.vertexAttribPointer(pLocI,2,glI.FLOAT,false,0,0);
+  glI.drawArrays(glI.TRIANGLE_STRIP,0,4);
+}
+
 // ═══ Init ═════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded',async()=>{
   try{if(typeof ToolBridge!=='undefined')await ToolBridge.handshake()}catch(e){}
+  await loadPersistedData();
   setup();
   setupMediaSession();
   initGL();
+  initGLInline();
   resizeCanvas();
   renderTab();
 });

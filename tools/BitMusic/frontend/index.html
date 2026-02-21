@@ -19,23 +19,26 @@
     <button class="hdr-btn hdr-add" id="btn-add" title="Agregar .bm"><i class="ph ph-plus"></i></button>
   </header>
 
-  <!-- ─── Tab Bar ──────────────────────────────────────────── -->
-  <nav class="tabs">
-    <button class="tab active" data-tab="library"><i class="ph ph-music-notes"></i><span>Biblioteca</span></button>
-    <button class="tab" data-tab="albums"><i class="ph ph-vinyl-record"></i><span>Álbumes</span></button>
-    <button class="tab" data-tab="search"><i class="ph ph-magnifying-glass"></i><span>Buscar</span></button>
-  </nav>
-
   <!-- ─── Content ──────────────────────────────────────────── -->
-  <main class="content" id="content">
-    <div class="empty-state" id="empty-state">
-      <i class="ph ph-music-notes-plus"></i>
-      <p>Agrega archivos <strong>.bm</strong> para comenzar</p>
-      <button class="btn-accent" id="btn-add-empty"><i class="ph ph-plus"></i> Agregar álbumes</button>
-    </div>
-  </main>
+  <main class="content" id="content"></main>
 
-  <!-- ─── Karaoke Overlay ──────────────────────────────────── -->
+  <!-- ─── Karaoke Inline (inside content for tab mode) ─────── -->
+  <div class="karaoke-inline" id="karaoke-inline" style="display:none">
+    <canvas id="karaoke-canvas-inline"></canvas>
+    <div class="k-lyrics ki-lyrics">
+      <div class="k-line k-prev" id="ly-prev-i"></div>
+      <div class="k-line k-cur" id="ly-cur-i"></div>
+      <div class="k-line k-next" id="ly-next-i"></div>
+      <div class="k-line k-next2" id="ly-next2-i"></div>
+    </div>
+    <button class="ki-mixer-btn" id="btn-mixer-inline" title="Mixer"><i class="ph ph-sliders-horizontal"></i></button>
+    <div class="ki-no-track" id="ki-no-track">
+      <i class="ph ph-microphone-stage"></i>
+      <p>Reproduce una cancion para ver el karaoke</p>
+    </div>
+  </div>
+
+  <!-- ─── Karaoke Overlay (fullscreen, from player bar) ────── -->
   <section class="karaoke" id="karaoke" style="display:none">
     <canvas id="karaoke-canvas"></canvas>
     <div class="k-top"><button class="k-btn" id="btn-exit-k"><i class="ph ph-arrow-left"></i> Salir</button></div>
@@ -56,8 +59,8 @@
     <div class="p-main">
       <img class="p-art" id="np-img" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3Crect fill='%23181820' width='1' height='1'/%3E%3C/svg%3E" alt="">
       <div class="p-info">
-        <div class="p-title" id="np-title">Sin reproducción</div>
-        <div class="p-artist" id="np-artist">—</div>
+        <div class="p-title" id="np-title">Sin reproduccion</div>
+        <div class="p-artist" id="np-artist">&mdash;</div>
       </div>
       <div class="p-actions">
         <button class="p-btn" id="btn-prev"><i class="ph-fill ph-skip-back"></i></button>
@@ -68,15 +71,24 @@
     </div>
   </div>
 
+  <!-- ─── Bottom Navigation ──────────────────────────────────── -->
+  <nav class="bottom-nav" id="bottom-nav">
+    <button class="bnav-tab active" data-tab="biblioteca"><i class="ph ph-folder-open"></i><span>Biblioteca</span></button>
+    <button class="bnav-tab" data-tab="albums"><i class="ph ph-vinyl-record"></i><span>Albumes</span></button>
+    <button class="bnav-tab" data-tab="songs"><i class="ph ph-music-notes"></i><span>Canciones</span></button>
+    <button class="bnav-tab" data-tab="karaoke"><i class="ph ph-microphone-stage"></i><span>Karaoke</span></button>
+    <button class="bnav-tab" data-tab="download"><i class="ph ph-download-simple"></i><span>Download</span></button>
+  </nav>
+
   <!-- ─── Mixer Panel ──────────────────────────────────────── -->
   <div class="mixer" id="mixer">
     <div class="mixer-head"><h3>Mixer</h3><button class="p-btn" id="btn-close-mixer"><i class="ph ph-x"></i></button></div>
     <div class="mixer-sliders">
+      <div class="sl"><label>Master</label><input type="range" id="vol-master" min="0" max="1" step="0.01" value="0.7"></div>
       <div class="sl"><label style="color:var(--c-drums)">Drums</label><input type="range" id="vol-drums" min="0" max="1" step="0.01" value="0.8"></div>
       <div class="sl"><label style="color:var(--c-bass)">Bass</label><input type="range" id="vol-bass" min="0" max="1" step="0.01" value="0.8"></div>
       <div class="sl"><label style="color:var(--c-vocals)">Vocals</label><input type="range" id="vol-vocals" min="0" max="1" step="0.01" value="0.8"></div>
       <div class="sl"><label style="color:var(--c-other)">Other</label><input type="range" id="vol-other" min="0" max="1" step="0.01" value="0.8"></div>
-      <div class="sl"><label>Master</label><input type="range" id="vol-master" min="0" max="1" step="0.01" value="0.7"></div>
     </div>
   </div>
 

@@ -4,7 +4,7 @@
   --accent: #44ccff; --accent2: #aa55ff;
   --c-drums: #22dd66; --c-bass: #44ccff; --c-other: #aa55ff; --c-vocals: #ffbb33;
   --border: rgba(60,60,80,.35); --hover: rgba(255,255,255,.06);
-  --player-h: 72px; --tab-h: 48px; --header-h: 50px;
+  --player-h: 72px; --nav-h: 56px; --header-h: 50px;
   --safe-b: env(safe-area-inset-bottom, 0px);
 }
 *{margin:0;padding:0;box-sizing:border-box}
@@ -20,35 +20,50 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 .hdr-logo i{color:var(--accent);font-size:1.25rem}
 .hdr-logo span{color:var(--accent);text-shadow:0 0 12px rgba(68,204,255,.4)}
 
-/* ─── Tabs ────────────────────────────────────────────────── */
-.tabs{height:var(--tab-h);display:flex;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;z-index:10}
-.tab{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;font-size:.82rem;font-weight:500;color:var(--text2);transition:all .2s;position:relative}
-.tab i{font-size:1.1rem}
-.tab.active{color:var(--accent)}
-.tab.active::after{content:'';position:absolute;bottom:0;left:20%;right:20%;height:2px;background:var(--accent);border-radius:1px}
-
 /* ─── Content ─────────────────────────────────────────────── */
-.content{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding-bottom:calc(var(--player-h) + var(--safe-b))}
+.content{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding-bottom:calc(var(--player-h) + var(--nav-h) + var(--safe-b) + 4px)}
 .content::-webkit-scrollbar{width:6px}
 .content::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
 
 /* Empty state */
-.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:1rem;color:var(--text3);text-align:center;padding:2rem}
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:1rem;color:var(--text3);text-align:center;padding:2rem}
 .empty-state i{font-size:3.5rem}
 .empty-state p{font-size:.95rem;line-height:1.5}
-.btn-accent{background:rgba(68,204,255,.12);border:1px solid rgba(68,204,255,.3);color:var(--accent);padding:.55rem 1.4rem;border-radius:10px;font-weight:500;font-size:.88rem;display:flex;align-items:center;gap:8px;transition:all .2s}
+.btn-accent{background:rgba(68,204,255,.12);border:1px solid rgba(68,204,255,.3);color:var(--accent);padding:.55rem 1.4rem;border-radius:10px;font-weight:500;font-size:.88rem;display:inline-flex;align-items:center;gap:8px;transition:all .2s}
 .btn-accent:hover,.btn-accent:active{background:rgba(68,204,255,.22);border-color:var(--accent)}
+.btn-purple{background:rgba(170,85,255,.12);border:1px solid rgba(170,85,255,.3);color:var(--accent2);padding:.55rem 1.4rem;border-radius:10px;font-weight:500;font-size:.88rem;display:inline-flex;align-items:center;gap:8px;transition:all .2s}
+.btn-purple:hover,.btn-purple:active{background:rgba(170,85,255,.22);border-color:var(--accent2)}
 
 /* Loading */
 .loading{display:flex;align-items:center;justify-content:center;gap:.8rem;padding:3rem;color:var(--text2);font-size:.9rem}
 @keyframes spin{to{transform:rotate(360deg)}}
 .spin{animation:spin .8s linear infinite;display:inline-block}
 
-/* ─── Library View ────────────────────────────────────────── */
+/* ─── Biblioteca View ────────────────────────────────────── */
+.bib-section{padding:1.2rem 1rem}
+.bib-dir{display:flex;align-items:center;gap:12px;background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:.8rem 1rem;margin-bottom:1rem}
+.bib-dir-icon{font-size:1.6rem;color:var(--accent);flex-shrink:0}
+.bib-dir-info{flex:1;overflow:hidden}
+.bib-dir-label{font-size:.72rem;color:var(--text3);text-transform:uppercase;letter-spacing:1px;font-weight:600}
+.bib-dir-path{font-size:.82rem;color:var(--text);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bib-dir-path.none{color:var(--text3);font-style:italic}
+.bib-actions{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:1.2rem}
+.bib-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:1.2rem}
+.bib-stat{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:.7rem .9rem;text-align:center}
+.bib-stat-val{font-size:1.4rem;font-weight:700;color:var(--accent)}
+.bib-stat-label{font-size:.72rem;color:var(--text2);margin-top:2px}
+.bib-album-list{display:flex;flex-direction:column;gap:4px}
+.bib-album{display:flex;align-items:center;gap:12px;padding:.5rem .4rem;border-radius:8px;transition:background .12s}
+.bib-album:hover{background:var(--hover)}
+.bib-album-art{width:44px;height:44px;border-radius:8px;object-fit:cover;background:var(--bg3);flex-shrink:0}
+.bib-album-info{flex:1;overflow:hidden}
+.bib-album-name{font-size:.85rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bib-album-meta{font-size:.72rem;color:var(--text2);margin-top:2px}
+
+/* ─── Library/Track List ─────────────────────────────────── */
 .lib-header{display:flex;align-items:center;justify-content:space-between;padding:.8rem 1rem .4rem;position:sticky;top:0;background:var(--bg);z-index:2}
 .lib-title{font-size:1.3rem;font-weight:700}
 .lib-count{font-size:.78rem;color:var(--text2)}
-.lib-actions{display:flex;gap:6px}
 
 .track{display:flex;align-items:center;padding:.55rem 1rem;transition:background .12s;gap:12px}
 .track:active,.track:hover{background:var(--hover)}
@@ -60,7 +75,19 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 .t-info{flex:1;overflow:hidden}
 .t-name{font-size:.88rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .t-sub{font-size:.75rem;color:var(--text2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.t-dur{font-size:.78rem;color:var(--text3);flex-shrink:0;margin-left:8px}
+.t-dur{font-size:.78rem;color:var(--text3);flex-shrink:0;margin-left:4px}
+.t-fav{width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:1rem;color:var(--text3);border-radius:50%;transition:all .15s;flex-shrink:0}
+.t-fav:hover{color:var(--accent2)}
+.t-fav.on{color:#ff4488}
+.t-fav.on i{font-weight:900}
+
+/* ─── Songs Filter Bar ───────────────────────────────────── */
+.filter-bar{display:flex;align-items:center;gap:6px;padding:.6rem 1rem;position:sticky;top:0;background:var(--bg);z-index:2;border-bottom:1px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch}
+.filter-bar::-webkit-scrollbar{display:none}
+.filter-chip{display:inline-flex;align-items:center;gap:5px;padding:.35rem .8rem;border-radius:20px;font-size:.76rem;font-weight:500;color:var(--text2);background:var(--bg3);border:1px solid var(--border);transition:all .15s;white-space:nowrap;flex-shrink:0}
+.filter-chip:hover{border-color:var(--accent);color:var(--text)}
+.filter-chip.active{background:rgba(170,85,255,.15);border-color:var(--accent2);color:var(--accent2)}
+.filter-chip i{font-size:.9rem}
 
 /* ─── Albums View ─────────────────────────────────────────── */
 .albums-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:16px;padding:1rem}
@@ -71,7 +98,6 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 .album-artist{font-size:.72rem;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* Album detail */
-.album-detail{padding:0}
 .ad-hero{display:flex;align-items:flex-end;gap:16px;padding:1.2rem 1rem;background:linear-gradient(to bottom,rgba(68,204,255,.06),transparent)}
 .ad-cover{width:120px;height:120px;border-radius:10px;object-fit:cover;box-shadow:0 6px 20px rgba(0,0,0,.5);flex-shrink:0;background:var(--bg3)}
 .ad-meta{flex:1;overflow:hidden;padding-bottom:4px}
@@ -82,18 +108,16 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 .btn-play-all{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;padding:.45rem 1.2rem;border-radius:20px;font-weight:600;font-size:.82rem;display:flex;align-items:center;gap:6px;box-shadow:0 2px 10px rgba(68,204,255,.25)}
 .btn-back-album{font-size:.78rem;color:var(--text2);display:flex;align-items:center;gap:4px;padding:.5rem 1rem}
 
-/* ─── Search View ─────────────────────────────────────────── */
-.search-wrap{padding:.8rem 1rem;position:sticky;top:0;background:var(--bg);z-index:2}
-.search-box{display:flex;align-items:center;background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:.5rem .8rem;gap:8px;transition:border-color .2s}
-.search-box:focus-within{border-color:var(--accent)}
-.search-box input{background:none;border:none;outline:none;color:var(--text);flex:1;font-family:inherit;font-size:.9rem}
-.search-box input::placeholder{color:var(--text3)}
-.search-clear{font-size:.9rem;color:var(--text3);display:none;width:24px;height:24px;align-items:center;justify-content:center;border-radius:50%}
-.search-clear.show{display:flex}
+/* ─── Download View ──────────────────────────────────────── */
+.dl-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:1rem;text-align:center;padding:2rem}
+.dl-empty i{font-size:3rem;color:var(--text3)}
+.dl-empty .dl-title{font-size:1.1rem;font-weight:600;color:var(--text2)}
+.dl-empty .dl-sub{font-size:.82rem;color:var(--text3)}
+
 .no-results{text-align:center;padding:3rem 1rem;color:var(--text3);font-size:.9rem}
 
 /* ─── Player Bar ──────────────────────────────────────────── */
-.player{position:fixed;bottom:0;left:0;right:0;height:var(--player-h);background:var(--bg2);border-top:1px solid var(--border);z-index:50;display:flex;flex-direction:column;padding-bottom:var(--safe-b);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+.player{position:fixed;bottom:var(--nav-h);left:0;right:0;height:var(--player-h);background:rgba(12,12,18,.95);border-top:1px solid var(--border);z-index:50;display:flex;flex-direction:column;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
 .p-progress{height:3px;background:var(--border);cursor:pointer;flex-shrink:0;position:relative}
 .p-progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));width:0;pointer-events:none;position:relative}
 .p-progress-fill::after{content:'';position:absolute;right:-5px;top:50%;transform:translateY(-50%) scale(0);width:10px;height:10px;background:#fff;border-radius:50%;transition:transform .15s;box-shadow:0 0 4px rgba(0,0,0,.4)}
@@ -111,16 +135,24 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 .p-play:hover{color:#fff;text-shadow:0 0 12px var(--accent)}
 .p-extra{font-size:1rem;color:var(--text2)}
 
-/* ─── Karaoke ─────────────────────────────────────────────── */
+/* ─── Bottom Navigation ──────────────────────────────────── */
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;height:var(--nav-h);background:var(--bg2);border-top:1px solid var(--border);z-index:60;display:flex;align-items:stretch;padding-bottom:var(--safe-b)}
+.bnav-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--text3);transition:all .2s;position:relative;-webkit-tap-highlight-color:transparent}
+.bnav-tab i{font-size:1.2rem;transition:all .2s}
+.bnav-tab span{font-size:.62rem;font-weight:500;letter-spacing:.3px;transition:all .2s}
+.bnav-tab.active{color:var(--accent)}
+.bnav-tab.active i{text-shadow:0 0 16px rgba(68,204,255,.5)}
+.bnav-tab.active::before{content:'';position:absolute;top:0;left:20%;right:20%;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:0 0 2px 2px}
+.bnav-tab:active{transform:scale(.92)}
+
+/* ─── Karaoke Overlay (fullscreen) ───────────────────────── */
 .karaoke{position:fixed;inset:0;background:#000;z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden}
 #karaoke-canvas{position:absolute;inset:0;width:100%;height:100%;z-index:0}
 .k-top{position:absolute;top:max(1rem,env(safe-area-inset-top,0px));left:1rem;z-index:10}
 .k-bottom{position:absolute;bottom:max(1.5rem,var(--safe-b));left:50%;transform:translateX(-50%);z-index:10}
 .k-btn{background:rgba(20,20,28,.5);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.1);color:var(--text2);padding:.5rem 1.2rem;border-radius:20px;font-size:.85rem;display:flex;align-items:center;gap:6px;transition:all .2s;font-family:inherit}
 .k-btn:active,.k-btn:hover{background:rgba(255,255,255,.1);color:var(--text)}
-.k-lyrics{position:absolute;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;padding:2rem;pointer-events:none}
-.k-lyrics>div{display:flex;flex-direction:column;align-items:center;gap:10px;max-width:880px;text-align:center}
-/* Fix: k-lyrics is a wrapper, lines are children. Let me restructure */
+.k-lyrics{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem;pointer-events:none;gap:10px;text-align:center}
 .k-line{text-shadow:0 2px 20px rgba(0,0,0,.8);transition:all .4s ease;line-height:1.35}
 .k-prev{font-size:1.1rem;color:var(--text3);opacity:.35}
 .k-cur{font-size:2.2rem;font-weight:700;color:var(--text);text-shadow:0 0 40px rgba(255,187,51,.3),0 4px 30px rgba(0,0,0,.9)}
@@ -128,6 +160,16 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 @keyframes lyPop{0%{transform:scale(1.04);opacity:.7}100%{transform:scale(1);opacity:1}}
 .k-next{font-size:1.25rem;color:var(--text2);opacity:.6}
 .k-next2{font-size:1rem;color:var(--text3);opacity:.35}
+
+/* ─── Karaoke Inline (tab mode) ──────────────────────────── */
+.karaoke-inline{position:absolute;top:var(--header-h);left:0;right:0;bottom:calc(var(--player-h) + var(--nav-h));background:#000;z-index:5;overflow:hidden}
+#karaoke-canvas-inline{position:absolute;inset:0;width:100%;height:100%;z-index:0}
+.ki-lyrics{max-width:880px;margin:0 auto}
+.ki-mixer-btn{position:absolute;bottom:1rem;right:1rem;z-index:10;width:40px;height:40px;border-radius:50%;background:rgba(20,20,28,.6);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.12);color:var(--text2);display:flex;align-items:center;justify-content:center;font-size:1.1rem;transition:all .2s}
+.ki-mixer-btn:hover,.ki-mixer-btn:active{background:rgba(255,255,255,.12);color:var(--accent)}
+.ki-no-track{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;color:var(--text3);z-index:6}
+.ki-no-track i{font-size:3rem}
+.ki-no-track p{font-size:.9rem}
 
 /* ─── Mixer ───────────────────────────────────────────────── */
 .mixer{position:fixed;bottom:-280px;left:50%;transform:translateX(-50%);width:min(580px,calc(100% - 1.5rem));height:240px;background:rgba(14,14,20,.97);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid var(--border);border-bottom:none;border-radius:16px 16px 0 0;z-index:210;padding:1.2rem 2rem;transition:bottom .35s cubic-bezier(.22,1,.36,1)}
@@ -142,10 +184,8 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 
 /* ─── Desktop enhancements ────────────────────────────────── */
 @media(min-width:769px){
-  .tabs{max-width:420px;margin:0 auto;background:transparent;border-bottom:none;gap:4px;padding:0 1rem}
-  .tab{border-radius:8px;font-size:.85rem}
-  .tab:hover{background:var(--hover)}
-  .tab.active::after{left:15%;right:15%}
+  .bottom-nav{max-width:480px;margin:0 auto;left:50%;transform:translateX(-50%);border-radius:16px 16px 0 0;border:1px solid var(--border);border-bottom:none}
+  .bnav-tab span{font-size:.68rem}
   .content{max-width:960px;margin:0 auto;width:100%}
   .albums-grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:20px;padding:1.2rem 1.5rem}
   .p-main{max-width:960px;margin:0 auto;width:100%}

@@ -423,7 +423,7 @@
             var openBtn = document.createElement('button');
             openBtn.className = 'btn btn-secondary';
             openBtn.style.marginTop = '8px';
-            openBtn.textContent = 'Abrir ubicación';
+            openBtn.textContent = 'Abrir archivo';
             openBtn.onclick = async function () {
               try { await ToolBridge.call('open_result', { path: filePath }); } catch (e) { /* ignore */ }
             };
