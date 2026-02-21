@@ -39,7 +39,140 @@ const karaokeView = document.getElementById('karaoke-view');
 const mainBanner = document.getElementById('main-banner');
 const lyricsList = document.getElementById('lyrics-list');
 const canvas = document.getElementById('karaoke-canvas');
-const canvasCtx = canvas.getContext('2d');
+const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+
+// WebGL Variables
+let shaderProgram = null;
+let quadBuffer = null;
+let positionLocation = -1;
+let uniforms = {};
+let visualizerStartTime = 0;
+
+// WebGL Shader Sources (Ported from Bit-Karaoke)
+const VERTEX_SHADER = `#version 300 es
+precision highp float;
+in vec2 a_position;
+out vec2 v_uv;
+void main() {
+  v_uv = a_position * 0.5 + 0.5;
+  gl_Position = vec4(a_position, 0.0, 1.0);
+}`;
+
+const FRAGMENT_SHADER = `#version 300 es
+precision highp float;
+
+in vec2 v_uv;
+out vec4 fragColor;
+
+uniform float u_time;
+uniform vec2 u_resolution;
+uniform float u_masterIntensity;
+
+uniform vec4 u_drums;
+uniform vec4 u_bass;
+uniform vec4 u_other;
+uniform vec4 u_vocals;
+
+uniform float u_drumsPeak;
+uniform float u_bassPeak;
+
+vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+vec3 permute(vec3 x) { return mod289(((x * 34.0) + 1.0) * x); }
+float snoise(vec2 v) {
+  const vec4 C = vec4(0.211324865405187, 0.366025403784439, -0.577350269189626, 0.024390243902439);
+  vec2 i = floor(v + dot(v, C.yy));
+  vec2 x0 = v - i + dot(i, C.xx);
+  vec2 i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+  vec4 x12 = x0.xyxy + C.xxzz; x12.xy -= i1; i = mod289(i);
+  vec3 p = permute(permute(i.y + vec3(0.0, i1.y, 1.0)) + i.x + vec3(0.0, i1.x, 1.0));
+  vec3 m = max(0.5 - vec3(dot(x0, x0), dot(x12.xy, x12.xy), dot(x12.zw, x12.zw)), 0.0);
+  m = m * m * m * m; vec3 x = 2.0 * fract(p * C.www) - 1.0;
+  vec3 h = abs(x) - 0.5; vec3 ox = floor(x + 0.5); vec3 a0 = x - ox;
+  m *= 1.79284291400159 - 0.85373472095314 * (a0 * a0 + h * h);
+  vec3 g; g.x = a0.x * x0.x + h.x * x0.y; g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+  return 130.0 * dot(m, g);
+}
+
+float softBlob(vec2 uv, vec2 center, float radius) {
+  float d = length(uv - center);
+  return exp(-d * d / (radius * radius));
+}
+
+vec2 blobPosition(float time, float seed, float speed, float range) {
+  float x = snoise(vec2(time * speed + seed, seed * 2.0)) * range;
+  float y = snoise(vec2(seed * 3.0, time * speed + seed)) * range;
+  return vec2(x, y);
+}
+
+void main() {
+  vec2 uv = v_uv;
+  float aspect = u_resolution.x / u_resolution.y;
+  vec2 p = uv - 0.5; p.x *= aspect;
+  float t = u_time; float radius = length(p);
+  float totalIntensity = u_drums.x + u_bass.x + u_other.x + u_vocals.x;
+  
+  if (totalIntensity < 0.001) { fragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
+  
+  vec3 drumsColor = vec3(0.13, 0.87, 0.4);
+  vec3 bassColor = vec3(0.27, 0.8, 1.0);
+  vec3 otherColor = vec3(0.67, 0.33, 1.0);
+  vec3 vocalsColor = vec3(1.0, 0.73, 0.2);
+  
+  float circleRadius = 0.42;
+  float edgeFade = smoothstep(circleRadius + 0.08, circleRadius - 0.15, radius);
+  
+  vec3 finalColor = vec3(0.0); float totalGlow = 0.0;
+  
+  if (u_drums.x > 0.01) {
+    float intensity = u_drums.x; float blobSize = 0.12 + intensity * 0.08;
+    vec2 pos1 = vec2(-0.15, -0.1) + blobPosition(t, 1.0, 0.3, 0.12) * (0.5 + intensity);
+    float drumsGlow = (softBlob(p, pos1, blobSize * 1.2)) * intensity;
+    drumsGlow *= 1.0 + u_drumsPeak * 0.5;
+    finalColor += drumsColor * drumsGlow * 1.2; totalGlow += drumsGlow;
+  }
+  
+  if (u_bass.x > 0.01) {
+    float intensity = u_bass.x; float blobSize = 0.15 + intensity * 0.1;
+    vec2 pos1 = vec2(0.0, -0.12) + blobPosition(t, 2.0, 0.15, 0.15) * (0.4 + intensity);
+    float bassGlow = (softBlob(p, pos1, blobSize * 1.4)) * intensity;
+    bassGlow *= 1.0 + u_bassPeak * 0.4;
+    finalColor += bassColor * bassGlow * 1.1; totalGlow += bassGlow;
+  }
+  
+  if (u_other.x > 0.01) {
+    float intensity = u_other.x; float blobSize = 0.11 + intensity * 0.07;
+    vec2 pos1 = vec2(0.12, -0.15) + blobPosition(t, 3.0, 0.28, 0.11) * (0.5 + intensity);
+    float otherGlow = (softBlob(p, pos1, blobSize * 1.1)) * intensity;
+    finalColor += otherColor * otherGlow * 1.15; totalGlow += otherGlow;
+  }
+  
+  if (u_vocals.x > 0.01) {
+    float intensity = u_vocals.x; float blobSize = 0.13 + intensity * 0.08;
+    vec2 pos1 = vec2(0.0, 0.05) + blobPosition(t, 4.0, 0.2, 0.1) * (0.4 + intensity);
+    float vocalsGlow = (softBlob(p, pos1, blobSize * 1.3)) * intensity;
+    finalColor += vocalsColor * vocalsGlow * 1.2; totalGlow += vocalsGlow;
+  }
+  
+  float maxComponent = max(max(finalColor.r, finalColor.g), finalColor.b);
+  if (maxComponent > 1.0) { finalColor = finalColor / maxComponent * 0.95 + finalColor * 0.05; }
+  
+  float ambientGlow = totalGlow * 0.15;
+  vec3 ambientColor = (drumsColor*u_drums.x + bassColor*u_bass.x + otherColor*u_other.x + vocalsColor*u_vocals.x) / max(totalIntensity, 0.001);
+  finalColor += ambientColor * ambientGlow * 0.3;
+  finalColor *= 0.7 + u_masterIntensity * 0.6;
+  finalColor *= edgeFade;
+  
+  float innerGlow = 1.0 - pow(radius * 1.5, 2.5) * 0.2;
+  finalColor *= max(innerGlow, 0.5);
+  vec3 gray = vec3(dot(finalColor, vec3(0.299, 0.587, 0.114)));
+  finalColor = mix(gray, finalColor, 1.3);
+  
+  float dither = (fract(sin(dot(uv * u_resolution, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) / 128.0;
+  finalColor += dither;
+  
+  fragColor = vec4(clamp(finalColor, 0.0, 1.0), 1.0);
+}`;
 
 const sliders = {
     master: document.getElementById('vol-master'),
@@ -438,59 +571,113 @@ function parseLrc(lrcText) {
     });
 }
 
-// --- Canvas Visualizer ---
+// --- Canvas Visualizer (WebGL) ---
+
+function compileShader(type, source) {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        console.error('Shader compile error:', gl.getShaderInfoLog(shader));
+        gl.deleteShader(shader);
+        return null;
+    }
+    return shader;
+}
+
+function initWebGL() {
+    if (!gl) return;
+    const vertexShader = compileShader(gl.VERTEX_SHADER, VERTEX_SHADER);
+    const fragmentShader = compileShader(gl.FRAGMENT_SHADER, FRAGMENT_SHADER);
+
+    shaderProgram = gl.createProgram();
+    gl.attachShader(shaderProgram, vertexShader);
+    gl.attachShader(shaderProgram, fragmentShader);
+    gl.linkProgram(shaderProgram);
+
+    if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+        console.error('Program link error:', gl.getProgramInfoLog(shaderProgram));
+        return;
+    }
+
+    quadBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+
+    positionLocation = gl.getAttribLocation(shaderProgram, 'a_position');
+
+    uniforms.u_time = gl.getUniformLocation(shaderProgram, 'u_time');
+    uniforms.u_resolution = gl.getUniformLocation(shaderProgram, 'u_resolution');
+    uniforms.u_masterIntensity = gl.getUniformLocation(shaderProgram, 'u_masterIntensity');
+    uniforms.u_drums = gl.getUniformLocation(shaderProgram, 'u_drums');
+    uniforms.u_bass = gl.getUniformLocation(shaderProgram, 'u_bass');
+    uniforms.u_other = gl.getUniformLocation(shaderProgram, 'u_other');
+    uniforms.u_vocals = gl.getUniformLocation(shaderProgram, 'u_vocals');
+    uniforms.u_drumsPeak = gl.getUniformLocation(shaderProgram, 'u_drumsPeak');
+    uniforms.u_bassPeak = gl.getUniformLocation(shaderProgram, 'u_bassPeak');
+}
 
 function resizeCanvas() {
-    canvas.width = karaokeView.clientWidth * 0.6;
-    canvas.height = 150;
+    const width = karaokeView.clientWidth * 0.6;
+    const height = width * 0.5; // Maintain a reasonable aspect ratio
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
+    canvas.width = width * (window.devicePixelRatio || 1);
+    canvas.height = height * (window.devicePixelRatio || 1);
+
+    if (gl) gl.viewport(0, 0, canvas.width, canvas.height);
+}
+
+function getRMS(stemName) {
+    if (!analysers[stemName]) return 0;
+    const data = new Uint8Array(analysers[stemName].frequencyBinCount);
+    analysers[stemName].getByteTimeDomainData(data);
+    let sum = 0;
+    for (let i = 0; i < data.length; i++) {
+        let val = (data[i] - 128) / 128.0;
+        sum += val * val;
+    }
+    const rms = Math.sqrt(sum / data.length);
+    return rms * 10.0; // amplify for visualization
 }
 
 function drawVisualizer() {
-    if (karaokeView.style.display === 'none') return;
+    if (karaokeView.style.display === 'none' || !gl || !shaderProgram) return;
 
-    const width = canvas.width;
-    const height = canvas.height;
+    if (visualizerStartTime === 0) visualizerStartTime = performance.now();
+    const time = (performance.now() - visualizerStartTime) / 1000;
 
-    canvasCtx.clearRect(0, 0, width, height);
+    gl.useProgram(shaderProgram);
 
-    const stems = ['bass', 'drums', 'other', 'vocals'];
-    const colors = ['#ff00f0', '#00f0ff', '#a0a0a8', '#ffffff']; // specific colors
+    gl.uniform1f(uniforms.u_time, time);
+    gl.uniform2f(uniforms.u_resolution, canvas.width, canvas.height);
 
-    const barWidth = (width / 64) - 2;
+    // Master Intensity Approximation (average of all stems)
+    const stems = ['drums', 'bass', 'other', 'vocals'];
+    const rmsValues = stems.map(stem => getRMS(stem));
+    const avgRMS = rmsValues.reduce((a, b) => a + b, 0) / 4;
 
-    // We intertwine frequency data to make a mixed visualization
-    let arrays = {};
-    stems.forEach(stem => {
-        if (analysers[stem]) {
-            arrays[stem] = new Uint8Array(analysers[stem].frequencyBinCount);
-            analysers[stem].getByteFrequencyData(arrays[stem]);
-        }
-    });
+    gl.uniform1f(uniforms.u_masterIntensity, avgRMS);
+    gl.uniform4f(uniforms.u_drums, rmsValues[0], 0, 0, 0);
+    gl.uniform4f(uniforms.u_bass, rmsValues[1], 0, 0, 0);
+    gl.uniform4f(uniforms.u_other, rmsValues[2], 0, 0, 0);
+    gl.uniform4f(uniforms.u_vocals, rmsValues[3], 0, 0, 0);
 
-    let x = 0;
-    for (let i = 0; i < 64; i++) {
-        // rotate between stems for each bar to give a composite look
-        const stemIdx = i % 4;
-        const stem = stems[stemIdx];
-        const color = colors[stemIdx];
+    // Mock peak values for now to save computation
+    gl.uniform1f(uniforms.u_drumsPeak, rmsValues[0] > 0.8 ? 1.0 : 0.0);
+    gl.uniform1f(uniforms.u_bassPeak, rmsValues[1] > 0.8 ? 1.0 : 0.0);
 
-        let val = 0;
-        if (arrays[stem]) {
-            val = arrays[stem][Math.floor(i / 4)];
-        }
+    gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
+    gl.enableVertexAttribArray(positionLocation);
+    gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
 
-        const barHeight = (val / 255) * height;
-
-        canvasCtx.fillStyle = color;
-        canvasCtx.fillRect(x, height - barHeight, barWidth, barHeight);
-
-        x += barWidth + 2;
-    }
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }
 
 
 // Init
 document.addEventListener('DOMContentLoaded', () => {
     setupEventListeners();
+    initWebGL();
     resizeCanvas();
 });
