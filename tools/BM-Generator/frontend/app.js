@@ -389,7 +389,20 @@
         progressFill.style.width = '100%';
         const output = status.output || status.result || {};
         if (output.bm_file_path) {
-          buildStatus.innerHTML = 'Archivo generado: <strong>' + escapeHtml(output.bm_file_path) + '</strong>';
+          var fileName = output.bm_file_path.split(/[/\\]/).pop();
+          buildStatus.innerHTML = '<strong>' + escapeHtml(fileName) + '</strong> generado correctamente.';
+
+          if (output.file_url) {
+            var dlBtn = document.createElement('button');
+            dlBtn.className = 'btn btn-primary';
+            dlBtn.style.marginTop = '12px';
+            dlBtn.textContent = 'Descargar .bm';
+            dlBtn.onclick = function () { downloadBmFile(output.file_url, fileName); };
+            buildStatus.appendChild(document.createElement('br'));
+            buildStatus.appendChild(dlBtn);
+          } else if (!ToolBridge.isShellMode()) {
+            buildStatus.innerHTML += '<br><span style="color:var(--muted);font-size:12px">Guardado en Descargas</span>';
+          }
         } else {
           buildStatus.textContent = 'Construccion completada.';
         }
@@ -457,5 +470,21 @@
 
   function escapeAttr(s) {
     return (s || '').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  async function downloadBmFile(url, fileName) {
+    try {
+      var blob = await fetch(url).then(function (r) { return r.blob(); });
+      var objUrl = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = objUrl;
+      a.download = fileName || 'album.bm';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(objUrl);
+    } catch (e) {
+      console.error('[BM] download error:', e);
+    }
   }
 })();

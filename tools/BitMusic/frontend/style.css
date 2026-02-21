@@ -1,13 +1,17 @@
 :root {
-    --bg-main: #0a0a0c;
-    --bg-sidebar: #121215;
-    --bg-player: rgba(22, 22, 26, 0.85);
-    /* Glassmorphism */
-    --text-primary: #f0f0f0;
-    --text-secondary: #a0a0a8;
-    --accent-cyan: #00f0ff;
-    --accent-magenta: #ff00f0;
-    --border-color: #2a2a35;
+    --bg-main: #000000;
+    --bg-sidebar: #0a0a10;
+    --bg-player: rgba(12, 12, 16, 0.92);
+    --text-primary: #e8e8f0;
+    --text-secondary: #9090a8;
+    --text-dim: #555568;
+    --accent-cyan: #44ccff;
+    --accent-magenta: #aa55ff;
+    --color-drums: #22dd66;
+    --color-bass: #44ccff;
+    --color-other: #aa55ff;
+    --color-vocals: #ffbb33;
+    --border-color: rgba(50, 50, 70, 0.5);
     --hover-bg: rgba(255, 255, 255, 0.05);
 }
 
@@ -619,46 +623,56 @@ body {
     justify-content: center;
     padding: 2rem;
     pointer-events: none;
-    mask-image: linear-gradient(to bottom, transparent, black 30%, black 70%, transparent);
-    -webkit-mask-image: linear-gradient(to bottom, transparent, black 30%, black 70%, transparent);
 }
 
 .lyrics-wrapper {
-    height: 100%;
-    width: 100%;
-    max-width: 900px;
-    overflow-y: hidden;
     display: flex;
     flex-direction: column;
     align-items: center;
-}
-
-#lyrics-list {
-    list-style: none;
-    margin: 0;
-    padding: 50vh 0;
-    /* padding to allow scrolling to center */
-    width: 100%;
+    gap: 8px;
+    max-width: 900px;
     text-align: center;
-    transition: transform 0.3s ease-out;
 }
 
-#lyrics-list li {
-    font-size: 1.4rem;
-    color: var(--text-secondary);
-    margin: 1rem 0;
-    transition: all 0.3s ease;
-    opacity: 0.4;
+.lyrics-line {
+    transition: all 400ms ease;
     text-shadow: 0 2px 20px rgba(0, 0, 0, 0.8);
 }
 
-#lyrics-list li.active {
+.lyrics-prev {
+    font-size: 1.2rem;
+    color: var(--text-dim);
+    opacity: 0.4;
+}
+
+.lyrics-current {
     font-size: 2.5rem;
     font-weight: 600;
     color: var(--text-primary);
-    opacity: 1;
-    text-shadow: 0 0 40px rgba(255, 187, 51, 0.3), 0 4px 30px rgba(0, 0, 0, 0.9);
-    transform: scale(1.05);
+    text-shadow:
+        0 0 40px rgba(255, 187, 51, 0.3),
+        0 4px 30px rgba(0, 0, 0, 0.9);
+}
+
+.lyrics-current.lyrics-transition {
+    animation: lyricPulse 0.3s ease-out;
+}
+
+@keyframes lyricPulse {
+    0% { transform: scale(1.05); opacity: 0.7; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.lyrics-next {
+    font-size: 1.4rem;
+    color: var(--text-secondary);
+    opacity: 0.7;
+}
+
+.lyrics-next-2 {
+    font-size: 1.1rem;
+    color: var(--text-dim);
+    opacity: 0.4;
 }
 
 /* Mixer Panel */

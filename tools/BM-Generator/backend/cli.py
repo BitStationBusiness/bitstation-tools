@@ -1,6 +1,7 @@
 import argparse
 import json
 import logging
+import os
 import sys
 import traceback
 from pathlib import Path
@@ -70,7 +71,7 @@ def handle_demucs_split(data: dict) -> dict:
     tracks = data.get("tracks") or []
     output_dir = data.get("output_dir")
     if not output_dir:
-        output_dir = str(Path("C:/BitStation/Gallery/bm-generator"))
+        output_dir = str(_get_platform_output_dir())
 
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -131,6 +132,22 @@ def handle_demucs_split(data: dict) -> dict:
     }
 
 
+def _get_platform_output_dir(tool_id: str = "bm-generator") -> Path:
+    """Returns the appropriate output directory based on the current platform."""
+    import platform
+    system = platform.system().lower()
+
+    if system == "linux" and "ANDROID_DATA" in os.environ:
+        base = Path(os.environ.get("EXTERNAL_STORAGE", "/sdcard")) / "Download"
+    elif system == "windows":
+        base = Path("C:/BitStation/Gallery") / tool_id
+    else:
+        base = Path.home() / "Downloads" / f"BitStation-{tool_id}"
+
+    base.mkdir(parents=True, exist_ok=True)
+    return base
+
+
 def handle_build_bm(data: dict) -> dict:
     from core.metadata_handler import AlbumMetadata
     from core.builder import BMBuilder
@@ -145,10 +162,10 @@ def handle_build_bm(data: dict) -> dict:
     if output_dir:
         out = Path(output_dir)
     else:
-        out = Path("C:/BitStation/Gallery/bm-generator")
+        out = _get_platform_output_dir()
     out.mkdir(parents=True, exist_ok=True)
 
-    temp = Path("C:/BitStation/Gallery/bm-generator/_temp")
+    temp = out / "_temp"
     temp.mkdir(parents=True, exist_ok=True)
 
     album = AlbumMetadata(**album_raw)

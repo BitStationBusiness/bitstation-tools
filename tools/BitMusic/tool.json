@@ -4,7 +4,9 @@
     "version": "1.0.0",
     "category": "app",
     "platforms": [
-        "windows"
+        "windows",
+        "android",
+        "web"
     ],
     "entrypoint_windows": "runner/run.ps1",
     "needs_models": false,

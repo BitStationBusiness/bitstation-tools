@@ -1,10 +1,12 @@
 {
   "tool_id": "bm-generator",
   "name": "BM Generator (Music Album Creator)",
-  "version": "1.0.13",
+  "version": "1.0.14",
   "category": "audio-processing",
   "platforms": [
-    "windows"
+    "windows",
+    "android",
+    "web"
   ],
   "entrypoint_windows": "runner/run.ps1",
   "needs_models": true,

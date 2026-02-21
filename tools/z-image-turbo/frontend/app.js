@@ -353,23 +353,36 @@
   window.cancelJob = async function () {
     if (!generating) return;
 
-    // Immediately stop polling and show cancelling state
     if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
 
     const spinner = chat.querySelector('.spinner-wrap');
-    const spinnerText = spinner && spinner.querySelector('.spinner-text');
-    if (spinnerText) spinnerText.textContent = 'Cancelando...';
+    if (spinner) removeEl(spinner);
 
     const savedPrompt = lastPrompt;
+    const cancelledJobId = currentJobId;
 
-    if (currentJobId) {
-      try { await ToolBridge.cancelJob(currentJobId); } catch (e) { /* ignore */ }
-    }
-
-    if (spinner) removeEl(spinner);
     input.value = savedPrompt;
     resetState();
+
+    if (cancelledJobId) {
+      silentDrainJob(cancelledJobId);
+    }
   };
+
+  function silentDrainJob(jobId) {
+    let attempts = 0;
+    const drainTimer = setInterval(async () => {
+      attempts++;
+      if (attempts > 120) { clearInterval(drainTimer); return; }
+      try {
+        const status = await ToolBridge.jobStatus(jobId);
+        const state = (status.status || status.state || '').toLowerCase();
+        if (state === 'completed' || state === 'done' || state === 'failed' || state === 'error' || state === 'cancelled') {
+          clearInterval(drainTimer);
+        }
+      } catch (e) { clearInterval(drainTimer); }
+    }, 2000);
+  }
 
   function resetState() {
     generating = false;
