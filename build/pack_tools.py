@@ -139,6 +139,13 @@ def main() -> int:
         else:
             tool_entry["has_frontend"] = False
 
+        # --- GPU persistence flag from tool.json ---
+        if meta.get("supports_gpu_persistence"):
+            tool_entry["supports_gpu_persistence"] = True
+        flash_cfg = meta.get("flash_gpu_config")
+        if isinstance(flash_cfg, dict) and flash_cfg.get("enabled"):
+            tool_entry["supports_gpu_persistence"] = True
+
         # --- Cover image URL (raw GitHub) ---
         icon_path = tdir / "icon.png"
         if icon_path.exists():
