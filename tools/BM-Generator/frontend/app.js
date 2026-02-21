@@ -15,7 +15,17 @@
   document.addEventListener('DOMContentLoaded', async () => {
     try { await ToolBridge.handshake(); } catch (e) { /* ignore */ }
     setupDragDrop();
+    setupWheelScroll();
   });
+
+  function setupWheelScroll() {
+    document.addEventListener('wheel', function (e) {
+      var content = document.getElementById('content');
+      if (!content) return;
+      content.scrollTop += e.deltaY;
+      e.preventDefault();
+    }, { passive: false });
+  }
 
   // Called from Flutter DropTarget when files are dragged onto the WebView
   window.onFilesDropped = function (paths) {
