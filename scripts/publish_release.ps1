@@ -107,7 +107,11 @@ try {
         git push origin HEAD
         git push origin $tag
         Write-Host ""
-        Write-Host "Pushed to origin. GitHub Actions will publish the release." -ForegroundColor Green
+        Write-Host "Pushed to origin. GitHub Actions will:" -ForegroundColor Green
+        Write-Host "  - Create the release for tag $tag" -ForegroundColor Gray
+        Write-Host "  - Upload: catalog.json, tool_*.zip, frontend_*.zip" -ForegroundColor Gray
+        Write-Host "  - Mark this release as Latest" -ForegroundColor Gray
+        Write-Host "  Releases page: <repo>/releases" -ForegroundColor DarkCyan
     }
 
     Write-Host ""

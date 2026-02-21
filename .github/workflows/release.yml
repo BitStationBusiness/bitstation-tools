@@ -32,14 +32,24 @@ jobs:
       - name: List release assets
         id: assets
         run: |
-          echo "catalog=dist/catalog.json" >> $GITHUB_OUTPUT
-          echo "zips<<EOF" >> $GITHUB_OUTPUT
-          printf '%s\n' dist/tool_*.zip dist/frontend_*.zip | sort -u >> $GITHUB_OUTPUT
+          # Single newline-separated list for action-gh-release (catalog + all zips)
+          ASSETS="dist/catalog.json"
+          for f in $(printf '%s\n' dist/tool_*.zip dist/frontend_*.zip | sort -u); do
+            [ -f "$f" ] && ASSETS="$ASSETS"$'\n'"$f"
+          done
+          echo "files<<EOF" >> $GITHUB_OUTPUT
+          echo "$ASSETS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Publish GitHub Release assets
+      - name: Publish GitHub Release (latest)
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            ${{ steps.assets.outputs.catalog }}
-            ${{ steps.assets.outputs.zips }}
+          name: Release ${{ github.ref_name }}
+          body: |
+            ## BitStation Tools
+            - **catalog.json** — Catálogo de tools con URLs y SHA256
+            - **tool_*.zip** — Paquetes completos (backend + frontend)
+            - **frontend_*.zip** — Frontends para BitStationApp
+          files: ${{ steps.assets.outputs.files }}
+          make_latest: true
+          fail_on_unmatched_files: true

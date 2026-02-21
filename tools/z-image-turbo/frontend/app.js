@@ -320,6 +320,12 @@
           resetState();
           return;
         }
+        if (state === 'cancelled') {
+          clearInterval(pollTimer);
+          removeEl(spinnerEl);
+          resetState();
+          return;
+        }
         if (state === 'failed' || state === 'error') {
           clearInterval(pollTimer);
           removeEl(spinnerEl);
@@ -345,14 +351,23 @@
   }
 
   window.cancelJob = async function () {
+    if (!generating) return;
+
+    // Immediately stop polling and show cancelling state
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+
+    const spinner = chat.querySelector('.spinner-wrap');
+    const spinnerText = spinner && spinner.querySelector('.spinner-text');
+    if (spinnerText) spinnerText.textContent = 'Cancelando...';
+
+    const savedPrompt = lastPrompt;
+
     if (currentJobId) {
       try { await ToolBridge.cancelJob(currentJobId); } catch (e) { /* ignore */ }
     }
-    if (pollTimer) clearInterval(pollTimer);
-    const spinner = chat.querySelector('.spinner-wrap');
+
     if (spinner) removeEl(spinner);
-    input.value = lastPrompt;
-    updateSendBtnState();
+    input.value = savedPrompt;
     resetState();
   };
 

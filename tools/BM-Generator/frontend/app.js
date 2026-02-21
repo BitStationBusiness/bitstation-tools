@@ -30,8 +30,11 @@
   // Called from Flutter DropTarget when files are dragged onto the WebView
   window.onFilesDropped = function (paths) {
     if (!Array.isArray(paths) || paths.length === 0) return;
-    selectedFiles = paths;
-    renderFileList();
+    var newPaths = paths.filter(function (p) { return selectedFiles.indexOf(p) === -1; });
+    if (newPaths.length > 0) {
+      selectedFiles = selectedFiles.concat(newPaths);
+      renderFileList();
+    }
   };
 
   // --- Navigation ---
@@ -81,7 +84,8 @@
       });
       const files = result.files || [];
       if (files.length > 0) {
-        selectedFiles = files;
+        var newFiles = files.filter(function (f) { return selectedFiles.indexOf(f) === -1; });
+        selectedFiles = selectedFiles.concat(newFiles);
         renderFileList();
       }
     } catch (e) {
