@@ -252,8 +252,7 @@ function renderTab(){
 }
 
 function renderEmptyLibrary(c){
-  c.innerHTML=`<div class="empty-state"><i class="ph ph-music-notes-plus"></i><p>Agrega archivos <strong>.bm</strong> para comenzar</p><button class="btn-accent" id="btn-add-empty"><i class="ph ph-plus"></i> Agregar albumes</button></div>`;
-  $('btn-add-empty')?.addEventListener('click',addFiles);
+  c.innerHTML=`<div class="empty-state"><i class="ph ph-music-notes-plus"></i><p>No hay albumes</p><p style="font-size:.82rem">Selecciona un directorio con archivos <strong>.bm</strong> desde la <strong>Biblioteca</strong></p></div>`;
 }
 
 // ─── Biblioteca ──────────────────────────────────────────────
@@ -275,7 +274,6 @@ function renderBiblioteca(){
 
   html+=`<div class="bib-actions">
     <button class="btn-accent" id="btn-pick-dir"><i class="ph ph-folder-open"></i> ${savedDirPath?'Cambiar directorio':'Elegir directorio'}</button>
-    <button class="btn-accent" id="btn-add-files"><i class="ph ph-plus"></i> Agregar archivos</button>
   </div>`;
 
   if(library.length){
@@ -302,7 +300,6 @@ function renderBiblioteca(){
   c.innerHTML=html;
 
   $('btn-pick-dir')?.addEventListener('click',pickDirectory);
-  $('btn-add-files')?.addEventListener('click',addFiles);
   c.querySelectorAll('.bib-album').forEach(el=>el.addEventListener('click',()=>{
     albumDetailIdx=+el.dataset.i;
     activeTab='albums';
@@ -596,7 +593,6 @@ function setup(){
     try{history.back()}catch(e){try{window.close()}catch(e2){}}
   });
 
-  $('btn-add')?.addEventListener('click',addFiles);
   $('file-input')?.addEventListener('change',handleFileInput);
 
   document.querySelectorAll('.bnav-tab').forEach(t=>t.addEventListener('click',()=>switchTab(t.dataset.tab)));

@@ -500,12 +500,21 @@
   }
 
   async function downloadBmFile(url, fileName) {
+    var name = fileName || 'album.bm';
+    if (ToolBridge.isShellMode()) {
+      try {
+        await ToolBridge.downloadFile(url, name);
+        return;
+      } catch (e) {
+        console.warn('[BM] bridge download failed, trying fallback:', e);
+      }
+    }
     try {
       var blob = await fetch(url).then(function (r) { return r.blob(); });
       var objUrl = URL.createObjectURL(blob);
       var a = document.createElement('a');
       a.href = objUrl;
-      a.download = fileName || 'album.bm';
+      a.download = name;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

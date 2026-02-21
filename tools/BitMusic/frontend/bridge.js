@@ -54,6 +54,9 @@
       if (isShellMode()) return sendViaBridge('handshake', {});
       return { ok: true, mode: 'standalone', api: 'toolbridge/1' };
     },
+    async pickFiles(opts) {
+      return sendViaBridge('pick_files', opts || {});
+    },
     async closeFrontend() {
       return sendViaBridge('close_frontend', {});
     },

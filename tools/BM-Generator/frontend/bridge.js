@@ -64,6 +64,9 @@
     async cancelJob(jobId) {
       return sendViaBridge('cancel_job', { job_id: jobId });
     },
+    async downloadFile(url, fileName) {
+      return sendViaBridge('download_file', { url: url, file_name: fileName });
+    },
     async closeFrontend() {
       return sendViaBridge('close_frontend', {});
     },

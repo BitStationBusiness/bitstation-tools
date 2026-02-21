@@ -176,10 +176,10 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 .mixer.open{bottom:0}
 .mixer-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem}
 .mixer-head h3{color:var(--accent);font-size:.95rem;font-weight:600;letter-spacing:.5px}
-.mixer-sliders{display:flex;justify-content:space-around;align-items:flex-end;height:120px}
-.sl{display:flex;flex-direction:column;align-items:center;gap:14px}
-.sl label{font-size:.72rem;text-transform:uppercase;letter-spacing:1.5px;font-weight:600;color:var(--text2)}
-.sl input[type=range]{-webkit-appearance:none;width:90px;height:4px;background:var(--border);border-radius:2px;outline:none;transform:rotate(-90deg);margin:34px 0;cursor:pointer}
+.mixer-sliders{display:flex;justify-content:space-evenly;align-items:center;height:120px;overflow-x:auto;gap:4px;padding:0 .5rem}
+.sl{display:flex;flex-direction:column;align-items:center;gap:8px;flex:1;min-width:0;max-width:100px}
+.sl label{font-size:.68rem;text-transform:uppercase;letter-spacing:1px;font-weight:600;color:var(--text2);white-space:nowrap}
+.sl input[type=range]{-webkit-appearance:none;width:80px;height:4px;background:var(--border);border-radius:2px;outline:none;transform:rotate(-90deg);margin:30px 0;cursor:pointer}
 .sl input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 0 8px var(--accent2);cursor:pointer}
 
 /* ─── Desktop enhancements ────────────────────────────────── */
