@@ -136,10 +136,10 @@
       const files = result.files || [];
       if (files.length > 0) {
         document.getElementById('albumCoverPath').value = files[0];
-        const name = files[0].split(/[/\\]/).pop();
-        document.getElementById('albumCoverLabel').textContent = name;
+        const area = document.getElementById('albumCoverPicker');
         const preview = document.getElementById('albumCoverPreview');
         preview.innerHTML = '<img src="file:///' + files[0].replace(/\\/g, '/') + '" alt="Cover">';
+        area.classList.add('has-cover');
       }
     } catch (e) {
       console.error('[BM] pickAlbumCover error:', e);
@@ -148,17 +148,20 @@
 
   window.addDiscCover = function () {
     const container = document.getElementById('discCoversContainer');
+    const section = document.getElementById('discCoversSection');
     const discNum = container.children.length + 1;
-    const row = document.createElement('div');
-    row.className = 'disc-cover-row';
-    row.innerHTML =
-      '<label>CD' + discNum + '</label>' +
-      '<div class="lrc-field">' +
-        '<input id="disc_cover_' + discNum + '" readonly value="Sin imagen" data-path="">' +
-        '<button class="btn btn-small" onclick="pickDiscCover(' + discNum + ')">Elegir</button>' +
-        '<button class="btn btn-small btn-remove" onclick="removeDiscCover(this)">&#x2715;</button>' +
-      '</div>';
-    container.appendChild(row);
+
+    const item = document.createElement('div');
+    item.className = 'disc-cover-item';
+    item.innerHTML =
+      '<div class="disc-cover-thumb" onclick="pickDiscCover(' + discNum + ')" id="disc_thumb_' + discNum + '">' +
+        '<svg viewBox="0 0 24 24" width="24" height="24" fill="#9da2ad"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 14.5c-2.49 0-4.5-2.01-4.5-4.5S9.51 7.5 12 7.5s4.5 2.01 4.5 4.5-2.01 4.5-4.5 4.5zm0-5.5c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1z"/></svg>' +
+      '</div>' +
+      '<input type="hidden" id="disc_cover_' + discNum + '" data-path="">' +
+      '<span class="disc-cover-label">CD ' + discNum + '</span>' +
+      '<button class="disc-cover-remove" onclick="removeDiscCover(' + discNum + ')">&times;</button>';
+    container.appendChild(item);
+    section.style.display = 'block';
   };
 
   window.pickDiscCover = async function (discNum) {
@@ -167,24 +170,27 @@
       const files = result.files || [];
       if (files.length > 0) {
         const el = document.getElementById('disc_cover_' + discNum);
-        el.value = files[0].split(/[/\\]/).pop();
         el.dataset.path = files[0];
-        discCoverPaths[discNum] = files[0];
+        const thumb = document.getElementById('disc_thumb_' + discNum);
+        thumb.innerHTML = '<img src="file:///' + files[0].replace(/\\/g, '/') + '" alt="CD' + discNum + '">';
+        thumb.classList.add('has-cover');
       }
     } catch (e) {
       console.error('[BM] pickDiscCover error:', e);
     }
   };
 
-  window.removeDiscCover = function (btn) {
-    const row = btn.closest('.disc-cover-row');
-    if (row) row.remove();
+  window.removeDiscCover = function (discNum) {
+    const item = document.getElementById('disc_thumb_' + discNum);
+    if (item) item.closest('.disc-cover-item').remove();
+    const container = document.getElementById('discCoversContainer');
+    const section = document.getElementById('discCoversSection');
+    if (container.children.length === 0) section.style.display = 'none';
   };
 
   function updateDiscCoverVisibility() {
-    const maxDisc = Math.max(1, ...analyzedSongs.map(s => parseInt(s.disc_number) || 1));
     const btn = document.getElementById('addDiscCoverBtn');
-    if (btn) btn.style.display = maxDisc > 1 ? 'inline-block' : 'none';
+    if (btn) btn.style.display = 'inline-block';
   }
 
   function renderMetadataForm() {
@@ -198,10 +204,13 @@
 
     // Reset cover state
     document.getElementById('albumCoverPath').value = '';
-    document.getElementById('albumCoverLabel').textContent = 'Sin imagen seleccionada';
+    const coverArea = document.getElementById('albumCoverPicker');
+    coverArea.classList.remove('has-cover');
     document.getElementById('albumCoverPreview').innerHTML =
-      '<div class="cover-icon">&#128247;</div><span>Portada del &Aacute;lbum</span>';
+      '<svg class="cover-svg-icon" viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>' +
+      '<span>Haz clic para seleccionar la portada</span>';
     document.getElementById('discCoversContainer').innerHTML = '';
+    document.getElementById('discCoversSection').style.display = 'none';
     discCoverPaths = {};
     updateDiscCoverVisibility();
 
@@ -271,9 +280,8 @@
     const discCovers = {};
     const dcContainer = document.getElementById('discCoversContainer');
     if (dcContainer) {
-      dcContainer.querySelectorAll('.disc-cover-row').forEach(row => {
-        const input = row.querySelector('input[id^="disc_cover_"]');
-        if (input && input.dataset.path) {
+      dcContainer.querySelectorAll('input[id^="disc_cover_"]').forEach(input => {
+        if (input.dataset.path) {
           const num = input.id.replace('disc_cover_', '');
           discCovers[num] = input.dataset.path;
         }
