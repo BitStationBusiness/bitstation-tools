@@ -393,26 +393,42 @@
           var fileName = filePath.split(/[/\\]/).pop();
           buildStatus.innerHTML = '<strong>' + escapeHtml(fileName) + '</strong> generado correctamente.';
 
+          var fileUrl = null;
           if (ToolBridge.isShellMode()) {
-            try { await ToolBridge.call('open_result', { path: filePath }); } catch (e) { /* ignore */ }
+            try {
+              var urlRes = await ToolBridge.getFileUrl(filePath);
+              if (urlRes && urlRes.ok && urlRes.url) fileUrl = urlRes.url;
+            } catch (e) { /* ignore */ }
+          }
 
-            var openBtn = document.createElement('button');
-            openBtn.className = 'btn btn-primary';
-            openBtn.style.marginTop = '12px';
-            openBtn.textContent = 'Abrir archivo';
-            openBtn.onclick = async function () {
-              try { await ToolBridge.call('open_result', { path: filePath }); } catch (e) { alert('No se pudo abrir: ' + e.message); }
-            };
-            buildStatus.appendChild(document.createElement('br'));
-            buildStatus.appendChild(openBtn);
-          } else if (output.file_url) {
+          if (fileUrl) {
             var dlBtn = document.createElement('button');
             dlBtn.className = 'btn btn-primary';
             dlBtn.style.marginTop = '12px';
             dlBtn.textContent = 'Descargar .bm';
-            dlBtn.onclick = function () { downloadBmFile(output.file_url, fileName); };
+            dlBtn.onclick = function () { downloadBmFile(fileUrl, fileName); };
             buildStatus.appendChild(document.createElement('br'));
             buildStatus.appendChild(dlBtn);
+          } else if (output.file_url) {
+            var dlBtn2 = document.createElement('button');
+            dlBtn2.className = 'btn btn-primary';
+            dlBtn2.style.marginTop = '12px';
+            dlBtn2.textContent = 'Descargar .bm';
+            dlBtn2.onclick = function () { downloadBmFile(output.file_url, fileName); };
+            buildStatus.appendChild(document.createElement('br'));
+            buildStatus.appendChild(dlBtn2);
+          }
+
+          if (ToolBridge.isShellMode()) {
+            var openBtn = document.createElement('button');
+            openBtn.className = 'btn btn-secondary';
+            openBtn.style.marginTop = '8px';
+            openBtn.textContent = 'Abrir ubicación';
+            openBtn.onclick = async function () {
+              try { await ToolBridge.call('open_result', { path: filePath }); } catch (e) { /* ignore */ }
+            };
+            buildStatus.appendChild(document.createElement('br'));
+            buildStatus.appendChild(openBtn);
           }
         } else {
           buildStatus.textContent = 'Construccion completada.';
