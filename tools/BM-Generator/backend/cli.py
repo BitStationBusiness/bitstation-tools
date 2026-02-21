@@ -70,8 +70,7 @@ def handle_demucs_split(data: dict) -> dict:
     tracks = data.get("tracks") or []
     output_dir = data.get("output_dir")
     if not output_dir:
-        base = Path(__file__).parent.parent
-        output_dir = str(base / "output")
+        output_dir = str(Path("C:/BitStation/Gallery/bm-generator"))
 
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -98,7 +97,7 @@ def handle_demucs_split(data: dict) -> dict:
             safe_name = f"{str(track_num).zfill(2)} - {title}"
             safe_name = "".join(c for c in safe_name if c.isalnum() or c in (" ", "-", "_", ".")).strip()
 
-            stems_dir = output_path / "BSM" / safe_name
+            stems_dir = output_path / "BM" / safe_name
             stems_dir.mkdir(parents=True, exist_ok=True)
 
             def progress_log(jid, pct, msg):
@@ -143,14 +142,13 @@ def handle_build_bm(data: dict) -> dict:
     output_dir = data.get("output_dir")
     export_bm_path = data.get("export_bm_path")
 
-    base_dir = Path(__file__).parent.parent
     if output_dir:
         out = Path(output_dir)
     else:
-        out = base_dir / "output"
+        out = Path("C:/BitStation/Gallery/bm-generator")
     out.mkdir(parents=True, exist_ok=True)
 
-    temp = base_dir / "temp"
+    temp = Path("C:/BitStation/Gallery/bm-generator/_temp")
     temp.mkdir(parents=True, exist_ok=True)
 
     album = AlbumMetadata(**album_raw)
@@ -184,6 +182,19 @@ def run_persistent_mode():
         print(json.dumps({"status": "error", "error": err}))
         sys.stdout.flush()
         sys.exit(1)
+
+    logger.info("[FLASH] Pre-loading demucs model...")
+    try:
+        import torch
+        from demucs.pretrained import get_model
+        _flash_model = get_model("htdemucs")
+        if torch.cuda.is_available():
+            _flash_model = _flash_model.cuda()
+            logger.info(f"[FLASH] Model loaded on GPU: {torch.cuda.get_device_name(0)}")
+        else:
+            logger.info("[FLASH] Model loaded on CPU")
+    except Exception as e:
+        logger.warning(f"[FLASH] Model preload failed (will load on first job): {e}")
 
     print(json.dumps({"status": "ready"}))
     sys.stdout.flush()

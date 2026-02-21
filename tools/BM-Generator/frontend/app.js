@@ -142,6 +142,10 @@
     analyzedSongs.forEach((song, i) => {
       const card = document.createElement('div');
       card.className = 'track-card';
+
+      const lrcDetected = song.lrc_file || '';
+      const lrcLabel = lrcDetected ? lrcDetected.split(/[/\\]/).pop() : 'Sin archivo';
+
       card.innerHTML =
         '<div class="track-header">Pista ' + (i + 1) + '</div>' +
         '<div class="form-row">' +
@@ -151,19 +155,46 @@
         '<div class="form-row">' +
           '<div class="form-group"><label>N&uacute;mero</label><input id="track_num_' + i + '" type="number" value="' + (song.track_number || i + 1) + '"></div>' +
           '<div class="form-group"><label>Disco</label><input id="track_disc_' + i + '" type="number" value="' + (song.disc_number || 1) + '"></div>' +
+        '</div>' +
+        '<div class="form-row">' +
+          '<div class="form-group lrc-group"><label>Lyrics (.lrc)</label>' +
+            '<div class="lrc-field">' +
+              '<input id="track_lrc_' + i + '" readonly value="' + escapeAttr(lrcLabel) + '" data-path="' + escapeAttr(lrcDetected) + '">' +
+              '<button class="btn btn-small" onclick="pickLrc(' + i + ')">Elegir</button>' +
+            '</div>' +
+          '</div>' +
         '</div>';
       container.appendChild(card);
     });
   }
 
+  window.pickLrc = async function (idx) {
+    try {
+      const result = await ToolBridge.pickFiles({ extensions: ['lrc'], multiple: false });
+      const files = result.files || [];
+      if (files.length > 0) {
+        const el = document.getElementById('track_lrc_' + idx);
+        el.value = files[0].split(/[/\\]/).pop();
+        el.dataset.path = files[0];
+      }
+    } catch (e) {
+      console.error('[BM] pickLrc error:', e);
+    }
+  };
+
   function gatherAlbumData() {
-    const tracks = analyzedSongs.map((song, i) => ({
-      ...song,
-      title: document.getElementById('track_title_' + i).value,
-      artist: document.getElementById('track_artist_' + i).value,
-      track_number: parseInt(document.getElementById('track_num_' + i).value) || (i + 1),
-      disc_number: parseInt(document.getElementById('track_disc_' + i).value) || 1,
-    }));
+    const tracks = analyzedSongs.map((song, i) => {
+      const lrcEl = document.getElementById('track_lrc_' + i);
+      const lrcPath = lrcEl ? (lrcEl.dataset.path || '') : (song.lrc_file || '');
+      return {
+        ...song,
+        title: document.getElementById('track_title_' + i).value,
+        artist: document.getElementById('track_artist_' + i).value,
+        track_number: parseInt(document.getElementById('track_num_' + i).value) || (i + 1),
+        disc_number: parseInt(document.getElementById('track_disc_' + i).value) || 1,
+        lrc_file: lrcPath || undefined,
+      };
+    });
 
     const trackCount = tracks.length;
     const maxDisc = Math.max(1, ...tracks.map(t => t.disc_number || 1));

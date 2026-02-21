@@ -115,7 +115,7 @@ class BMBuilder:
                 shutil.copy2(lrc_src, song_dir / f"{track_prefix} - {track_safe_title}.lrc")
 
             # Demucs stem separation
-            bsm_dir = song_dir / "BSM"
+            bsm_dir = song_dir / "BM"
             bsm_dir.mkdir(exist_ok=True)
 
             stem_info = {}

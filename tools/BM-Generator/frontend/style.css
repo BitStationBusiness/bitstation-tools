@@ -246,6 +246,25 @@ html, body {
   margin-top: 20px;
 }
 
+.btn-small {
+  height: 32px; padding: 0 12px;
+  font-size: 12px; font-weight: 500;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.08);
+  color: var(--text);
+  border: 1px solid var(--line);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.btn-small:hover { background: rgba(255,255,255,0.14); }
+
+.lrc-field {
+  display: flex; gap: 8px; align-items: center;
+}
+.lrc-field input { flex: 1; }
+.lrc-group { flex: 1 1 100%; }
+
 /* --- Responsive --- */
 @media (max-width: 600px) {
   .form-row { flex-direction: column; gap: 8px; }

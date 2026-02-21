@@ -162,7 +162,7 @@
   ],
   "flash_gpu_config": {
     "enabled": true,
-    "warmup_script": "src/main.py",
+    "warmup_script": "backend/cli.py",
     "cache_artifacts": [
       "cache/**/*.gguf",
       "cache/**/*.safetensors",

@@ -80,7 +80,7 @@ def run_demucs_cli(
         cmd,
         capture_output=True,
         text=True,
-        timeout=3600,
+        timeout=7200,
         env=env,
     )
 
