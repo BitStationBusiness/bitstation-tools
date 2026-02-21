@@ -1,158 +1,158 @@
 {
   "manifest_version": "1.0",
   "tool_id": "z-image-turbo",
-  "tool_version": "0.8.9",
-  "created_at": "2026-02-21T16:06:25.364704+00:00",
+  "tool_version": "0.9.0",
+  "created_at": "2026-02-21T16:13:06.229646+00:00",
   "files": [
     {
       "path": ".gitignore",
       "sha256": "6f4ed4030d6943e9a2d95f64e79fb8519d967c2d45843697e47c2eea906879ad",
       "size": 185,
-      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.8.9/files/.gitignore"
+      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.9.0/files/.gitignore"
     },
     {
       "path": "README.md",
       "sha256": "c6e4acd129da3fa72435daad814d04118462876d4777f834e98bb3cd81c1e768",
       "size": 1632,
-      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.8.9/files/README.md"
+      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.9.0/files/README.md"
     },
     {
       "path": "bench_result.txt",
       "sha256": "e9ae96ca3670f16568b393ac73e2d9a32eb606be0cf86fbb5305d49babfc02bc",
       "size": 34062,
-      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.8.9/files/bench_result.txt"
+      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.9.0/files/bench_result.txt"
     },
     {
       "path": "bench_simple.py",
       "sha256": "e3dc551af6f3d5a1e1e5fc990f4fcdff4d2e66f07dbc4b03f02faab1b92d2142",
       "size": 924,
-      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.8.9/files/bench_simple.py",
+      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.9.0/files/bench_simple.py",
       "executable": true
     },
     {
       "path": "benchmark_flash.py",
       "sha256": "0ecb85e7a78f3ed71980678612969999678bf821b2aca286e081795ffba6b116",
       "size": 2478,
-      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.8.9/files/benchmark_flash.py",
+      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.9.0/files/benchmark_flash.py",
       "executable": true
     },
     {
       "path": "benchmark_log.txt",
       "sha256": "ad885418185413225f428c914a1892eac144d94fdaf08a2949fb3b7fa28534e3",
       "size": 190,
-      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.8.9/files/benchmark_log.txt"
+      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.9.0/files/benchmark_log.txt"
     },
     {
       "path": "benchmark_multi.py",
       "sha256": "1f674299f309e62aac59bf170e0a209ce50763f196f99e7346fb9aec8a32af67",
       "size": 3750,
-      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.8.9/files/benchmark_multi.py",
+      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.9.0/files/benchmark_multi.py",
       "executable": true
     },
     {
       "path": "benchmark_output.json",
       "sha256": "9e65d3a00b1699df43d0b5341bccaaa8746d11405f062bda357ed078e4277aff",
       "size": 158,
-      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.8.9/files/benchmark_output.json"
+      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.9.0/files/benchmark_output.json"
     },
     {
       "path": "benchmark_results.txt",
       "sha256": "aa15e6d1bed399a5e91077e9cddd89ffa081878f9a6731ea7ba9eaa366c2ff6b",
       "size": 7306,
-      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.8.9/files/benchmark_results.txt"
+      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.9.0/files/benchmark_results.txt"
     },
     {
       "path": "frontend/app.js",
       "sha256": "4fcb66cbab038d67278c20e42df4f30560785c82077da4295d2b605e6291e9b9",
       "size": 21306,
-      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.8.9/files/frontend/app.js"
+      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.9.0/files/frontend/app.js"
     },
     {
       "path": "frontend/bridge.js",
       "sha256": "d944f8026115497382938639cbe78376635530a1ef77be9482ac3c68006ac6ff",
       "size": 4241,
-      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.8.9/files/frontend/bridge.js"
+      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.9.0/files/frontend/bridge.js"
     },
     {
       "path": "frontend/index.html",
       "sha256": "9331f5411eed1a5d6435524a1f678d526581e28f57ffd1bcfc2112105f72d57f",
       "size": 6477,
-      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.8.9/files/frontend/index.html"
+      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.9.0/files/frontend/index.html"
     },
     {
       "path": "frontend/style.css",
       "sha256": "95c09a19ea875ffcd281b2f27be7ad83ad45cc279047238be4760450a698e853",
       "size": 15036,
-      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.8.9/files/frontend/style.css"
+      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.9.0/files/frontend/style.css"
     },
     {
       "path": "icon.png",
       "sha256": "7552b69e3b7754d0dc7fbfa6b353fdaa4dd8d2e96e91120a786f5235c59d4e15",
       "size": 828256,
-      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.8.9/files/icon.png"
+      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.9.0/files/icon.png"
     },
     {
       "path": "manifest.json",
-      "sha256": "bef3bf0a008361dd9b1cbacf3a0e4e98e833aab9d4d059f58b725e5429cb6909",
+      "sha256": "30e6cef943aabc7cae1eabb29dd1b24db87b0e72bbaed5949d94278df42d436c",
       "size": 6976,
-      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.8.9/files/manifest.json"
+      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.9.0/files/manifest.json"
     },
     {
       "path": "requirements.lock.txt",
       "sha256": "2ed6ba98400c66519872ab3e8bdb94ac786fbea2592f40383993120229b4d02a",
       "size": 798,
-      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.8.9/files/requirements.lock.txt"
+      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.9.0/files/requirements.lock.txt"
     },
     {
       "path": "requirements.txt",
       "sha256": "8909d71e7c425fe8ef762eb7569b181cdd73413e46f51f781f6d3ec9aa0f8d40",
       "size": 324,
-      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.8.9/files/requirements.txt"
+      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.9.0/files/requirements.txt"
     },
     {
       "path": "runner/run.ps1",
       "sha256": "bff9cfcd794f8e1c243d8e3b32f475d91ed6d11240700099dc060c8336837d42",
       "size": 1349,
-      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.8.9/files/runner/run.ps1",
+      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.9.0/files/runner/run.ps1",
       "executable": true
     },
     {
       "path": "runner/setup.ps1",
       "sha256": "d7dec90a674b36997beca9ec9c9a9c9bbf9fcb9e02096e9ac5c744dd19d0a877",
       "size": 9289,
-      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.8.9/files/runner/setup.ps1",
+      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.9.0/files/runner/setup.ps1",
       "executable": true
     },
     {
       "path": "src/main.py",
       "sha256": "6cc7d770a2e0b04d2d3afca7f78d4e0fd4b98e5e5f275560802df18e0a8874c5",
       "size": 36855,
-      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.8.9/files/src/main.py",
+      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.9.0/files/src/main.py",
       "executable": true
     },
     {
       "path": "test_input.json",
       "sha256": "76b1aa25bd623262dbf71c71e20f776ba28b7491d57a8a00bff458e5b2ae0e51",
       "size": 112,
-      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.8.9/files/test_input.json"
+      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.9.0/files/test_input.json"
     },
     {
       "path": "test_output.json",
       "sha256": "38f74ca327bc160afb499c94bed846faa69a6ce97b9851d2a8842dd5936e05ae",
       "size": 158,
-      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.8.9/files/test_output.json"
+      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.9.0/files/test_output.json"
     },
     {
       "path": "test_persistent_job.json",
       "sha256": "5cecb05d0c374f847af3723aa845cdfc4fc4e33fe6456c939876dbb5ffa0ac89",
       "size": 56,
-      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.8.9/files/test_persistent_job.json"
+      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.9.0/files/test_persistent_job.json"
     },
     {
       "path": "tool.json",
-      "sha256": "63ec58354a27495b2e513201199b012e9f8873356ce02df8315e51ccaf42240b",
+      "sha256": "c47e1d25b62455ec7ec2a1bf400660b1dbec5214436089cdac590b1858d0d37b",
       "size": 1732,
-      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.8.9/files/tool.json"
+      "url": "https://hq.bitstation.local/api/v1/tools/z-image-turbo/0.9.0/files/tool.json"
     }
   ],
   "delete_policy": "safe",
@@ -177,5 +177,5 @@
       "cache/**/*.bin"
     ]
   },
-  "manifest_hash": "d03c8acf062fccda730ae8d999516079ac2b1a7668b5bb52570c963ce8b70661"
+  "manifest_hash": "a0d4ef0d9c61e3d38931e457be8c89656b1077c2a3ee451dedcf588f0c11aa4f"
 }
