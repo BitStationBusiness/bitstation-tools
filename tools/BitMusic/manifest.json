@@ -2,7 +2,7 @@
   "manifest_version": "1.0",
   "tool_id": "bitmusic",
   "tool_version": "1.0.5",
-  "created_at": "2026-02-21T18:53:45.287214+00:00",
+  "created_at": "2026-02-21T20:17:28.590086+00:00",
   "files": [
     {
       "path": "cover.png",
@@ -42,7 +42,7 @@
     },
     {
       "path": "manifest.json",
-      "sha256": "47a8df5fdabd028182d283c2e4749e2e2b1e6641dc40b9a70826017f70a6609c",
+      "sha256": "53f1fb191fff98621ad7ee633c6f6a7328ec89261a08ed16fff4e8e278a5c82e",
       "size": 2984,
       "url": "https://hq.bitstation.local/api/v1/tools/bitmusic/1.0.5/files/manifest.json"
     },
@@ -79,5 +79,5 @@
     "__pycache__/**",
     "*.pyc"
   ],
-  "manifest_hash": "6b1b0a6f21a1ecb50b9127e70c7b96bed7ce94f5f685e1a116d0fa16cbb4af44"
+  "manifest_hash": "31b3ec20789ba8dd29fcb4d8aa0873cd6458d7e67d63472af2ae4252140694ac"
 }
