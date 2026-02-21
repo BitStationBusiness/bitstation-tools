@@ -148,11 +148,11 @@ class BMBuilder:
             # Internal paths relative to workspace root
             if multi_disc:
                 track_internal = f"CD{disc_num}/Canciones/{folder_name}/{original.name}"
-                stems_internal = f"CD{disc_num}/Canciones/{folder_name}/BSM"
+                stems_internal = f"CD{disc_num}/Canciones/{folder_name}/BM"
                 lrc_internal = f"CD{disc_num}/Canciones/{folder_name}/{track_prefix} - {track_safe_title}.lrc" if lrc_src else None
             else:
                 track_internal = f"Canciones/{folder_name}/{original.name}"
-                stems_internal = f"Canciones/{folder_name}/BSM"
+                stems_internal = f"Canciones/{folder_name}/BM"
                 lrc_internal = f"Canciones/{folder_name}/{track_prefix} - {track_safe_title}.lrc" if lrc_src else None
 
             track_manifest = {

@@ -67,6 +67,25 @@
         </div>
 
         <div class="form-section">
+          <h3>Portada</h3>
+          <div class="cover-section">
+            <div class="cover-picker" id="albumCoverPicker" onclick="pickAlbumCover()">
+              <div class="cover-placeholder" id="albumCoverPreview">
+                <div class="cover-icon">&#128247;</div>
+                <span>Portada del &Aacute;lbum</span>
+              </div>
+            </div>
+            <div class="cover-info">
+              <input id="albumCoverPath" type="hidden" value="">
+              <p class="cover-label" id="albumCoverLabel">Sin imagen seleccionada</p>
+              <button class="btn btn-small" onclick="pickAlbumCover()">Elegir imagen</button>
+            </div>
+          </div>
+          <div id="discCoversContainer"></div>
+          <button class="btn btn-small btn-add-disc-cover" id="addDiscCoverBtn" onclick="addDiscCover()" style="display:none">+ Portada de disco</button>
+        </div>
+
+        <div class="form-section">
           <h3>Canciones</h3>
           <div id="tracksContainer"></div>
         </div>

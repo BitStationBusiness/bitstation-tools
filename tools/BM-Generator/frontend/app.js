@@ -128,6 +128,65 @@
 
   // --- Step 2: Metadata ---
 
+  let discCoverPaths = {};
+
+  window.pickAlbumCover = async function () {
+    try {
+      const result = await ToolBridge.pickFiles({ extensions: ['jpg', 'jpeg', 'png', 'webp'], multiple: false });
+      const files = result.files || [];
+      if (files.length > 0) {
+        document.getElementById('albumCoverPath').value = files[0];
+        const name = files[0].split(/[/\\]/).pop();
+        document.getElementById('albumCoverLabel').textContent = name;
+        const preview = document.getElementById('albumCoverPreview');
+        preview.innerHTML = '<img src="file:///' + files[0].replace(/\\/g, '/') + '" alt="Cover">';
+      }
+    } catch (e) {
+      console.error('[BM] pickAlbumCover error:', e);
+    }
+  };
+
+  window.addDiscCover = function () {
+    const container = document.getElementById('discCoversContainer');
+    const discNum = container.children.length + 1;
+    const row = document.createElement('div');
+    row.className = 'disc-cover-row';
+    row.innerHTML =
+      '<label>CD' + discNum + '</label>' +
+      '<div class="lrc-field">' +
+        '<input id="disc_cover_' + discNum + '" readonly value="Sin imagen" data-path="">' +
+        '<button class="btn btn-small" onclick="pickDiscCover(' + discNum + ')">Elegir</button>' +
+        '<button class="btn btn-small btn-remove" onclick="removeDiscCover(this)">&#x2715;</button>' +
+      '</div>';
+    container.appendChild(row);
+  };
+
+  window.pickDiscCover = async function (discNum) {
+    try {
+      const result = await ToolBridge.pickFiles({ extensions: ['jpg', 'jpeg', 'png', 'webp'], multiple: false });
+      const files = result.files || [];
+      if (files.length > 0) {
+        const el = document.getElementById('disc_cover_' + discNum);
+        el.value = files[0].split(/[/\\]/).pop();
+        el.dataset.path = files[0];
+        discCoverPaths[discNum] = files[0];
+      }
+    } catch (e) {
+      console.error('[BM] pickDiscCover error:', e);
+    }
+  };
+
+  window.removeDiscCover = function (btn) {
+    const row = btn.closest('.disc-cover-row');
+    if (row) row.remove();
+  };
+
+  function updateDiscCoverVisibility() {
+    const maxDisc = Math.max(1, ...analyzedSongs.map(s => parseInt(s.disc_number) || 1));
+    const btn = document.getElementById('addDiscCoverBtn');
+    if (btn) btn.style.display = maxDisc > 1 ? 'inline-block' : 'none';
+  }
+
   function renderMetadataForm() {
     if (analyzedSongs.length > 0) {
       const first = analyzedSongs[0];
@@ -136,6 +195,15 @@
       document.getElementById('albumYear').value = first.year || '';
       document.getElementById('albumGenre').value = first.genre || '';
     }
+
+    // Reset cover state
+    document.getElementById('albumCoverPath').value = '';
+    document.getElementById('albumCoverLabel').textContent = 'Sin imagen seleccionada';
+    document.getElementById('albumCoverPreview').innerHTML =
+      '<div class="cover-icon">&#128247;</div><span>Portada del &Aacute;lbum</span>';
+    document.getElementById('discCoversContainer').innerHTML = '';
+    discCoverPaths = {};
+    updateDiscCoverVisibility();
 
     const container = document.getElementById('tracksContainer');
     container.innerHTML = '';
@@ -198,6 +266,20 @@
 
     const trackCount = tracks.length;
     const maxDisc = Math.max(1, ...tracks.map(t => t.disc_number || 1));
+
+    const albumCoverPath = document.getElementById('albumCoverPath').value || '';
+    const discCovers = {};
+    const dcContainer = document.getElementById('discCoversContainer');
+    if (dcContainer) {
+      dcContainer.querySelectorAll('.disc-cover-row').forEach(row => {
+        const input = row.querySelector('input[id^="disc_cover_"]');
+        if (input && input.dataset.path) {
+          const num = input.id.replace('disc_cover_', '');
+          discCovers[num] = input.dataset.path;
+        }
+      });
+    }
+
     return {
       album_artist: document.getElementById('albumArtist').value,
       album_name: document.getElementById('albumTitle').value,
@@ -206,6 +288,8 @@
       release_date: document.getElementById('albumYear').value,
       total_tracks: trackCount,
       total_discs: maxDisc,
+      cover_image_path: albumCoverPath || undefined,
+      disc_covers: Object.keys(discCovers).length > 0 ? discCovers : undefined,
       songs: tracks,
     };
   }
@@ -215,12 +299,22 @@
   function renderBuildSummary() {
     const data = gatherAlbumData();
     const summary = document.getElementById('buildSummary');
+    const coverInfo = data.cover_image_path
+      ? '<img src="file:///' + data.cover_image_path.replace(/\\/g, '/') + '" class="summary-cover">'
+      : '<span class="no-cover">Sin portada</span>';
+    const discCoverCount = data.disc_covers ? Object.keys(data.disc_covers).length : 0;
+
     summary.innerHTML =
+      '<div class="summary-header">' + coverInfo +
+      '<div class="summary-meta">' +
       '<div><span class="label">Artista:</span> <span class="value">' + escapeHtml(data.album_artist) + '</span></div>' +
       '<div><span class="label">&Aacute;lbum:</span> <span class="value">' + escapeHtml(data.album_name) + '</span></div>' +
       '<div><span class="label">A&ntilde;o:</span> <span class="value">' + escapeHtml(data.year) + '</span></div>' +
       '<div><span class="label">G&eacute;nero:</span> <span class="value">' + escapeHtml(data.genre) + '</span></div>' +
       '<div><span class="label">Pistas:</span> <span class="value">' + data.songs.length + '</span></div>' +
+      '<div><span class="label">Discos:</span> <span class="value">' + data.total_discs + '</span></div>' +
+      (discCoverCount > 0 ? '<div><span class="label">Portadas de disco:</span> <span class="value">' + discCoverCount + '</span></div>' : '') +
+      '</div></div>' +
       '<div style="margin-top:8px;font-size:12px;color:var(--muted)">Cada pista sera separada en 4 stems: drums, bass, vocals, other (Demucs htdemucs)</div>';
   }
 
