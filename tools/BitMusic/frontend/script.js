@@ -76,28 +76,52 @@ uniform vec4 u_vocals;
 uniform float u_drumsPeak;
 uniform float u_bassPeak;
 
+#define PI 3.14159265359
+
+// ============================================
+// Smooth Noise
+// ============================================
+
 vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
 vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
 vec3 permute(vec3 x) { return mod289(((x * 34.0) + 1.0) * x); }
+
 float snoise(vec2 v) {
-  const vec4 C = vec4(0.211324865405187, 0.366025403784439, -0.577350269189626, 0.024390243902439);
+  const vec4 C = vec4(0.211324865405187, 0.366025403784439,
+                      -0.577350269189626, 0.024390243902439);
   vec2 i = floor(v + dot(v, C.yy));
   vec2 x0 = v - i + dot(i, C.xx);
   vec2 i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
-  vec4 x12 = x0.xyxy + C.xxzz; x12.xy -= i1; i = mod289(i);
+  vec4 x12 = x0.xyxy + C.xxzz;
+  x12.xy -= i1;
+  i = mod289(i);
   vec3 p = permute(permute(i.y + vec3(0.0, i1.y, 1.0)) + i.x + vec3(0.0, i1.x, 1.0));
   vec3 m = max(0.5 - vec3(dot(x0, x0), dot(x12.xy, x12.xy), dot(x12.zw, x12.zw)), 0.0);
-  m = m * m * m * m; vec3 x = 2.0 * fract(p * C.www) - 1.0;
-  vec3 h = abs(x) - 0.5; vec3 ox = floor(x + 0.5); vec3 a0 = x - ox;
+  m = m * m * m * m;
+  vec3 x = 2.0 * fract(p * C.www) - 1.0;
+  vec3 h = abs(x) - 0.5;
+  vec3 ox = floor(x + 0.5);
+  vec3 a0 = x - ox;
   m *= 1.79284291400159 - 0.85373472095314 * (a0 * a0 + h * h);
-  vec3 g; g.x = a0.x * x0.x + h.x * x0.y; g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+  vec3 g;
+  g.x = a0.x * x0.x + h.x * x0.y;
+  g.yz = a0.yz * x12.xz + h.yz * x12.yw;
   return 130.0 * dot(m, g);
 }
 
+// ============================================
+// Soft Blob / Metaball
+// ============================================
+
 float softBlob(vec2 uv, vec2 center, float radius) {
   float d = length(uv - center);
+  // Suave falloff exponencial tipo HomePod
   return exp(-d * d / (radius * radius));
 }
+
+// ============================================
+// Animated Blob Position
+// ============================================
 
 vec2 blobPosition(float time, float seed, float speed, float range) {
   float x = snoise(vec2(time * speed + seed, seed * 2.0)) * range;
@@ -105,69 +129,174 @@ vec2 blobPosition(float time, float seed, float speed, float range) {
   return vec2(x, y);
 }
 
+// ============================================
+// Main
+// ============================================
+
 void main() {
   vec2 uv = v_uv;
   float aspect = u_resolution.x / u_resolution.y;
-  vec2 p = uv - 0.5; p.x *= aspect;
-  float t = u_time; float radius = length(p);
+  
+  // Centrar y corregir aspecto
+  vec2 p = uv - 0.5;
+  p.x *= aspect;
+  
+  float t = u_time;
+  float radius = length(p);
+  
+  // Calcular intensidad total
   float totalIntensity = u_drums.x + u_bass.x + u_other.x + u_vocals.x;
   
-  if (totalIntensity < 0.001) { fragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
+  // Sin audio = negro puro
+  if (totalIntensity < 0.001) {
+    fragColor = vec4(0.0, 0.0, 0.0, 1.0);
+    return;
+  }
   
-  vec3 drumsColor = vec3(0.13, 0.87, 0.4);
-  vec3 bassColor = vec3(0.27, 0.8, 1.0);
-  vec3 otherColor = vec3(0.67, 0.33, 1.0);
-  vec3 vocalsColor = vec3(1.0, 0.73, 0.2);
+  // ============================================
+  // Colores HomePod Style (vibrantes pero suaves)
+  // ============================================
+  vec3 drumsColor = vec3(0.13, 0.87, 0.4);     // Verde #22dd66
+  vec3 bassColor = vec3(0.27, 0.8, 1.0);       // Azul #44ccff
+  vec3 otherColor = vec3(0.67, 0.33, 1.0);     // Morado #aa55ff
+  vec3 vocalsColor = vec3(1.0, 0.73, 0.2);     // Naranja #ffbb33
   
+  // ============================================
+  // Radio del área visible (círculo)
+  // ============================================
   float circleRadius = 0.42;
   float edgeFade = smoothstep(circleRadius + 0.08, circleRadius - 0.15, radius);
   
-  vec3 finalColor = vec3(0.0); float totalGlow = 0.0;
+  // ============================================
+  // Acumular color de todos los blobs
+  // ============================================
+  vec3 finalColor = vec3(0.0);
+  float totalGlow = 0.0;
   
+  // DRUMS - Verde: 3 blobs
   if (u_drums.x > 0.01) {
-    float intensity = u_drums.x; float blobSize = 0.12 + intensity * 0.08;
+    float intensity = u_drums.x;
+    float blobSize = 0.12 + intensity * 0.08;
+    
     vec2 pos1 = vec2(-0.15, -0.1) + blobPosition(t, 1.0, 0.3, 0.12) * (0.5 + intensity);
-    float drumsGlow = (softBlob(p, pos1, blobSize * 1.2)) * intensity;
+    float b1 = softBlob(p, pos1, blobSize * 1.2);
+    
+    vec2 pos2 = vec2(0.18, 0.15) + blobPosition(t, 1.5, 0.25, 0.1) * (0.5 + intensity);
+    float b2 = softBlob(p, pos2, blobSize * 0.9);
+    
+    vec2 pos3 = vec2(-0.08, 0.2) + blobPosition(t, 1.8, 0.35, 0.08) * (0.5 + intensity);
+    float b3 = softBlob(p, pos3, blobSize * 0.7);
+    
+    float drumsGlow = (b1 + b2 * 0.8 + b3 * 0.6) * intensity;
     drumsGlow *= 1.0 + u_drumsPeak * 0.5;
-    finalColor += drumsColor * drumsGlow * 1.2; totalGlow += drumsGlow;
+    
+    finalColor += drumsColor * drumsGlow * 1.2;
+    totalGlow += drumsGlow;
   }
   
+  // BASS - Azul: 3 blobs (más grandes, movimiento lento)
   if (u_bass.x > 0.01) {
-    float intensity = u_bass.x; float blobSize = 0.15 + intensity * 0.1;
+    float intensity = u_bass.x;
+    float blobSize = 0.15 + intensity * 0.1;
+    
     vec2 pos1 = vec2(0.0, -0.12) + blobPosition(t, 2.0, 0.15, 0.15) * (0.4 + intensity);
-    float bassGlow = (softBlob(p, pos1, blobSize * 1.4)) * intensity;
+    float b1 = softBlob(p, pos1, blobSize * 1.4);
+    
+    vec2 pos2 = vec2(-0.2, 0.08) + blobPosition(t, 2.3, 0.12, 0.12) * (0.4 + intensity);
+    float b2 = softBlob(p, pos2, blobSize);
+    
+    vec2 pos3 = vec2(0.15, 0.1) + blobPosition(t, 2.6, 0.18, 0.1) * (0.4 + intensity);
+    float b3 = softBlob(p, pos3, blobSize * 0.85);
+    
+    float bassGlow = (b1 + b2 * 0.9 + b3 * 0.7) * intensity;
     bassGlow *= 1.0 + u_bassPeak * 0.4;
-    finalColor += bassColor * bassGlow * 1.1; totalGlow += bassGlow;
+    
+    finalColor += bassColor * bassGlow * 1.1;
+    totalGlow += bassGlow;
   }
   
+  // OTHER - Morado: 3 blobs (medianos)
   if (u_other.x > 0.01) {
-    float intensity = u_other.x; float blobSize = 0.11 + intensity * 0.07;
+    float intensity = u_other.x;
+    float blobSize = 0.11 + intensity * 0.07;
+    
     vec2 pos1 = vec2(0.12, -0.15) + blobPosition(t, 3.0, 0.28, 0.11) * (0.5 + intensity);
-    float otherGlow = (softBlob(p, pos1, blobSize * 1.1)) * intensity;
-    finalColor += otherColor * otherGlow * 1.15; totalGlow += otherGlow;
+    float b1 = softBlob(p, pos1, blobSize * 1.1);
+    
+    vec2 pos2 = vec2(-0.18, -0.05) + blobPosition(t, 3.4, 0.22, 0.09) * (0.5 + intensity);
+    float b2 = softBlob(p, pos2, blobSize * 0.9);
+    
+    vec2 pos3 = vec2(0.05, 0.18) + blobPosition(t, 3.7, 0.3, 0.1) * (0.5 + intensity);
+    float b3 = softBlob(p, pos3, blobSize * 0.75);
+    
+    float otherGlow = (b1 + b2 * 0.85 + b3 * 0.65) * intensity;
+    
+    finalColor += otherColor * otherGlow * 1.15;
+    totalGlow += otherGlow;
   }
   
+  // VOCALS - Naranja: 3 blobs (fluidos)
   if (u_vocals.x > 0.01) {
-    float intensity = u_vocals.x; float blobSize = 0.13 + intensity * 0.08;
+    float intensity = u_vocals.x;
+    float blobSize = 0.13 + intensity * 0.08;
+    
     vec2 pos1 = vec2(0.0, 0.05) + blobPosition(t, 4.0, 0.2, 0.1) * (0.4 + intensity);
-    float vocalsGlow = (softBlob(p, pos1, blobSize * 1.3)) * intensity;
-    finalColor += vocalsColor * vocalsGlow * 1.2; totalGlow += vocalsGlow;
+    float b1 = softBlob(p, pos1, blobSize * 1.3);
+    
+    vec2 pos2 = vec2(-0.12, -0.18) + blobPosition(t, 4.3, 0.25, 0.12) * (0.5 + intensity);
+    float b2 = softBlob(p, pos2, blobSize * 0.95);
+    
+    vec2 pos3 = vec2(0.2, 0.0) + blobPosition(t, 4.6, 0.18, 0.08) * (0.5 + intensity);
+    float b3 = softBlob(p, pos3, blobSize * 0.8);
+    
+    float vocalsGlow = (b1 + b2 * 0.8 + b3 * 0.65) * intensity;
+    
+    finalColor += vocalsColor * vocalsGlow * 1.2;
+    totalGlow += vocalsGlow;
   }
   
-  float maxComponent = max(max(finalColor.r, finalColor.g), finalColor.b);
-  if (maxComponent > 1.0) { finalColor = finalColor / maxComponent * 0.95 + finalColor * 0.05; }
+  // ============================================
+  // Mezcla suave de colores (estilo HomePod)
+  // ============================================
   
+  // Normalizar para evitar oversaturation pero mantener brillo
+  float maxComponent = max(max(finalColor.r, finalColor.g), finalColor.b);
+  if (maxComponent > 1.0) {
+    finalColor = finalColor / maxComponent * 0.95 + finalColor * 0.05;
+  }
+  
+  // ============================================
+  // Glow ambiente suave
+  // ============================================
   float ambientGlow = totalGlow * 0.15;
-  vec3 ambientColor = (drumsColor*u_drums.x + bassColor*u_bass.x + otherColor*u_other.x + vocalsColor*u_vocals.x) / max(totalIntensity, 0.001);
+  vec3 ambientColor = (drumsColor * u_drums.x + bassColor * u_bass.x + 
+                       otherColor * u_other.x + vocalsColor * u_vocals.x) / 
+                       max(totalIntensity, 0.001);
   finalColor += ambientColor * ambientGlow * 0.3;
-  finalColor *= 0.7 + u_masterIntensity * 0.6;
+  
+  // ============================================
+  // Intensidad master
+  // ============================================
+  float masterBoost = 0.7 + u_masterIntensity * 0.6;
+  finalColor *= masterBoost;
+  
+  // ============================================
+  // Aplicar máscara circular y viñeta
+  // ============================================
   finalColor *= edgeFade;
   
   float innerGlow = 1.0 - pow(radius * 1.5, 2.5) * 0.2;
   finalColor *= max(innerGlow, 0.5);
-  vec3 gray = vec3(dot(finalColor, vec3(0.299, 0.587, 0.114)));
-  finalColor = mix(gray, finalColor, 1.3);
   
+  // ============================================
+  // Saturación extra para colores más vivos
+  // ============================================
+  vec3 gray = vec3(dot(finalColor, vec3(0.299, 0.587, 0.114)));
+  finalColor = mix(gray, finalColor, 1.3); // Boost saturación
+  
+  // ============================================
+  // Anti-banding (dithering)
+  // ============================================
   float dither = (fract(sin(dot(uv * u_resolution, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) / 128.0;
   finalColor += dither;
   
