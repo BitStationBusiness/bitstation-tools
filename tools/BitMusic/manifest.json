@@ -2,7 +2,7 @@
   "manifest_version": "1.0",
   "tool_id": "bitmusic",
   "tool_version": "1.0.4",
-  "created_at": "2026-02-21T16:12:59.591568+00:00",
+  "created_at": "2026-02-21T16:55:55.729048+00:00",
   "files": [
     {
       "path": "cover.png",
@@ -12,26 +12,26 @@
     },
     {
       "path": "frontend/bridge.js",
-      "sha256": "39802fa7d0cf9fb233e1444b00daac961174688494b33f746afee4f52fd6d780",
-      "size": 2166,
+      "sha256": "3ea5f65bedeb58a612a1a392e40790a945e646732a2f9e518451f6f96880e547",
+      "size": 2258,
       "url": "https://hq.bitstation.local/api/v1/tools/bitmusic/1.0.4/files/frontend/bridge.js"
     },
     {
       "path": "frontend/index.html",
-      "sha256": "66cae424fa26ab1f58abc331d3bc5e87e4d562728bdbca78fb6ebbbd4cdd6394",
-      "size": 6046,
+      "sha256": "cd2752cab8ee8c6684e02106aa05598a3faa1eae51aa7bcb695d5200d272735a",
+      "size": 5976,
       "url": "https://hq.bitstation.local/api/v1/tools/bitmusic/1.0.4/files/frontend/index.html"
     },
     {
       "path": "frontend/script.js",
-      "sha256": "0ede5c1c56f72828b48aaa827ac0a951a07c7b425c1b9af68caa5058570fcb31",
-      "size": 39257,
+      "sha256": "a7e783cd14095ab301b83d1b0c39e3b26d1d11dc349102a8546cbb4495c5aba3",
+      "size": 38976,
       "url": "https://hq.bitstation.local/api/v1/tools/bitmusic/1.0.4/files/frontend/script.js"
     },
     {
       "path": "frontend/style.css",
-      "sha256": "0c2f5c86293fbcb7253453a89e88235584d2ec14052c11ad8003c8438d3695c7",
-      "size": 17273,
+      "sha256": "79e74350e289dad29392fdc9da2924297a171e7e93329682e4a781b13b27fe6f",
+      "size": 17362,
       "url": "https://hq.bitstation.local/api/v1/tools/bitmusic/1.0.4/files/frontend/style.css"
     },
     {
@@ -42,7 +42,7 @@
     },
     {
       "path": "manifest.json",
-      "sha256": "16657991e1dbbadb9deee80e2ab4ee1591921dd808fffb4fa865e8f84c1fc01f",
+      "sha256": "8c29251fe55d203428d2cc91a25aa70873b60440f9741dac076100a312e4ca9c",
       "size": 2984,
       "url": "https://hq.bitstation.local/api/v1/tools/bitmusic/1.0.4/files/manifest.json"
     },
@@ -79,5 +79,5 @@
     "__pycache__/**",
     "*.pyc"
   ],
-  "manifest_hash": "e932ecf48405d25143c4d407e74587585072f60e4374ce4e7ea4366c7923dbb6"
+  "manifest_hash": "7a3f17e44bd5ec3046a08a19ae2480b845681a001d6934f2999c8437025fdb07"
 }

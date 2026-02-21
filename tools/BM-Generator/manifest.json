@@ -2,7 +2,7 @@
   "manifest_version": "1.0",
   "tool_id": "bm-generator",
   "tool_version": "1.0.17",
-  "created_at": "2026-02-21T16:13:01.707169+00:00",
+  "created_at": "2026-02-21T16:55:57.890867+00:00",
   "files": [
     {
       "path": ".gitignore",
@@ -74,14 +74,14 @@
     },
     {
       "path": "frontend/app.js",
-      "sha256": "67aee540055a37783d68cad5c8bc8d3d1fa4cbba7c3ab133256eb0d34d997a4e",
-      "size": 20933,
+      "sha256": "7dfd7ecf5456396d117ff1286aa3cfeb5da21b7cc0f54ee7614cf4b7fdd0f4af",
+      "size": 21185,
       "url": "https://hq.bitstation.local/api/v1/tools/bm-generator/1.0.17/files/frontend/app.js"
     },
     {
       "path": "frontend/bridge.js",
-      "sha256": "b98eae784bbcf3f4e7d20bb0382f5177e441668af67dd70e74f74576765c3238",
-      "size": 2546,
+      "sha256": "af44262519ace696e8ac66e0e4a1dc511b14ebb7087d1b02e1a7ef27bac6c0a4",
+      "size": 2676,
       "url": "https://hq.bitstation.local/api/v1/tools/bm-generator/1.0.17/files/frontend/bridge.js"
     },
     {
@@ -104,7 +104,7 @@
     },
     {
       "path": "manifest.json",
-      "sha256": "2d31dc0f915a508af6226fcfcee8e60eb3c5aab56c41f32328e9dc58a662c0e4",
+      "sha256": "d934187de89b3707762b0e10351ceed3eef37af55401267a00d6c6c433fe3710",
       "size": 6700,
       "url": "https://hq.bitstation.local/api/v1/tools/bm-generator/1.0.17/files/manifest.json"
     },
@@ -169,5 +169,5 @@
       "cache/**/*.bin"
     ]
   },
-  "manifest_hash": "555a70a904a34a4bf814aeddcacf27e20674a000168f1188d8971fdad97896b8"
+  "manifest_hash": "a00fab618914520d116cb6908263e04eec922f1fd6352d9ea95d925f65f99bb5"
 }
