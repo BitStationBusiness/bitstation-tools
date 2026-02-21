@@ -67,5 +67,8 @@
     async closeFrontend() {
       return sendViaBridge('close_frontend', {});
     },
+    async getFileUrl(path) {
+      return sendViaBridge('get_file_url', { path: path });
+    },
   };
 })();

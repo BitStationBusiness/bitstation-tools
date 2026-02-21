@@ -14,16 +14,17 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body {
-  width: 100%; height: 100%; overflow: hidden;
+  width: 100%; height: 100%;
   background: radial-gradient(circle at 50% -20%, #1f2230, var(--bg) 40%);
   color: var(--text);
   font-family: "Segoe UI", "Inter", system-ui, sans-serif;
+  overflow: hidden;
 }
 
 #app {
-  width: 100%; height: 100dvh;
-  display: grid;
-  grid-template-rows: 56px 1fr;
+  width: 100%; height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 /* --- Topbar --- */
@@ -51,10 +52,16 @@ html, body {
   letter-spacing: 0.5px;
 }
 
+/* --- Topbar fixed --- */
+.topbar { flex-shrink: 0; }
+
 /* --- Content --- */
 #content {
+  flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 24px 20px;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* --- Wizard stepper --- */
@@ -265,65 +272,62 @@ html, body {
 .lrc-field input { flex: 1; }
 .lrc-group { flex: 1 1 100%; }
 
-/* --- Album cover picker --- */
-.cover-form-section { text-align: center; }
-.cover-form-section h3 { text-align: left; }
-
-.album-cover-area {
-  width: 200px; height: 200px;
-  margin: 12px auto 0;
+/* --- Covers row --- */
+.covers-row {
+  display: flex; gap: 14px; align-items: flex-start;
+}
+.album-cover-box {
+  width: 160px; height: 160px;
   border: 2px dashed rgba(124,77,255,0.4);
-  border-radius: 14px;
+  border-radius: 12px;
   overflow: hidden;
   cursor: pointer;
+  flex-shrink: 0;
   transition: border-color 0.2s, box-shadow 0.2s;
-  position: relative;
 }
-.album-cover-area:hover {
+.album-cover-box:hover {
   border-color: var(--accent);
-  box-shadow: 0 0 20px rgba(124,77,255,0.15);
+  box-shadow: 0 0 16px rgba(124,77,255,0.15);
 }
-.album-cover-placeholder {
-  width: 100%; height: 100%;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  gap: 8px;
-  color: var(--muted); font-size: 12px;
-}
-.cover-svg-icon {
-  width: 48px; height: 48px;
-  fill: var(--muted);
-  opacity: 0.5;
-}
-.album-cover-area img {
-  width: 100%; height: 100%;
-  object-fit: cover;
-}
-.album-cover-area.has-cover {
+.album-cover-box.has-cover {
   border-style: solid;
   border-color: var(--accent);
 }
+.album-cover-empty {
+  width: 100%; height: 100%;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 6px;
+  color: #555; font-size: 11px;
+}
+.album-cover-box img {
+  width: 100%; height: 100%;
+  object-fit: cover; display: block;
+}
 
-/* --- Disc covers --- */
-.disc-covers-header {
-  display: flex; align-items: center; gap: 8px;
-  margin-bottom: 8px;
+/* --- Disc covers column --- */
+.disc-covers-col {
+  display: flex; flex-direction: column; gap: 8px;
+  align-items: center; padding-top: 2px;
 }
-.disc-covers-title {
-  font-size: 11px; font-weight: 600;
-  color: var(--muted); text-transform: uppercase;
-  letter-spacing: 0.5px;
+.add-disc-btn {
+  width: 56px; height: 56px;
+  border: 2px dashed var(--line);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
 }
-.disc-covers-grid {
-  display: flex; gap: 10px; flex-wrap: wrap;
-  justify-content: center;
+.add-disc-btn:hover {
+  border-color: var(--accent-2);
+  background: rgba(61,165,255,0.08);
 }
 .disc-cover-item {
   position: relative;
-  width: 80px; text-align: center;
+  text-align: center;
 }
 .disc-cover-thumb {
-  width: 80px; height: 80px;
+  width: 56px; height: 56px;
   border: 2px dashed var(--line);
   border-radius: 10px;
   overflow: hidden;
@@ -334,36 +338,26 @@ html, body {
 .disc-cover-thumb:hover { border-color: var(--accent-2); }
 .disc-cover-thumb img {
   width: 100%; height: 100%;
-  object-fit: cover;
+  object-fit: cover; display: block;
 }
 .disc-cover-thumb.has-cover {
   border-style: solid;
   border-color: var(--accent-2);
 }
 .disc-cover-label {
-  font-size: 10px; color: var(--accent-2);
-  font-weight: 600; margin-top: 4px;
+  font-size: 9px; color: var(--accent-2);
+  font-weight: 600; margin-top: 2px;
 }
 .disc-cover-remove {
-  position: absolute; top: -6px; right: -6px;
-  width: 20px; height: 20px;
+  position: absolute; top: -5px; right: -5px;
+  width: 18px; height: 18px;
   border-radius: 50%;
   background: rgba(211,47,47,0.9);
   border: none; color: #fff;
-  font-size: 12px; cursor: pointer;
+  font-size: 11px; cursor: pointer;
   display: grid; place-items: center;
   line-height: 1;
 }
-.btn-add-disc-cover {
-  margin-top: 12px;
-}
-.btn-remove {
-  height: 32px; padding: 0 8px;
-  background: rgba(211,47,47,0.15);
-  border: 1px solid rgba(211,47,47,0.3);
-  color: #ff5252;
-}
-.btn-remove:hover { background: rgba(211,47,47,0.3); }
 
 /* --- Summary cover --- */
 .summary-header {
@@ -390,6 +384,6 @@ html, body {
 @media (max-width: 600px) {
   .form-row { flex-direction: column; gap: 8px; }
   .drop-zone { padding: 32px 16px; }
-  .cover-section { flex-direction: column; align-items: center; }
+  .covers-row { flex-direction: column; align-items: center; }
   .summary-header { flex-direction: column; align-items: center; }
 }

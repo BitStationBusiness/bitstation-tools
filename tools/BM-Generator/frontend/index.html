@@ -66,22 +66,23 @@
           </div>
         </div>
 
-        <div class="form-section cover-form-section">
-          <h3>Portada del &Aacute;lbum</h3>
-          <div class="album-cover-area" id="albumCoverPicker" onclick="pickAlbumCover()">
-            <div class="album-cover-placeholder" id="albumCoverPreview">
-              <svg class="cover-svg-icon" viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
-              <span>Haz clic para seleccionar la portada</span>
+        <div class="form-section">
+          <h3>Portada</h3>
+          <div class="covers-row">
+            <div class="album-cover-box" id="albumCoverPicker" onclick="pickAlbumCover()">
+              <div id="albumCoverPreview" class="album-cover-empty">
+                <svg viewBox="0 0 24 24" width="40" height="40" fill="#555"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+                <span>Portada</span>
+              </div>
+            </div>
+            <input id="albumCoverPath" type="hidden" value="">
+            <div class="disc-covers-col" id="discCoversCol">
+              <div id="discCoversContainer"></div>
+              <div class="add-disc-btn" id="addDiscCoverBtn" onclick="addDiscCover()" title="Agregar portada de disco">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="#9da2ad"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+              </div>
             </div>
           </div>
-          <input id="albumCoverPath" type="hidden" value="">
-          <div id="discCoversSection" style="display:none">
-            <div class="disc-covers-header">
-              <span class="disc-covers-title">Portadas de disco</span>
-            </div>
-            <div class="disc-covers-grid" id="discCoversContainer"></div>
-          </div>
-          <button class="btn btn-small btn-add-disc-cover" id="addDiscCoverBtn" onclick="addDiscCover()" style="display:none">+ Agregar portada de disco</button>
         </div>
 
         <div class="form-section">
