@@ -1,63 +1,63 @@
 {
   "manifest_version": "1.0",
   "tool_id": "bitmusic",
-  "tool_version": "1.0.0",
-  "created_at": "2026-02-21T13:28:39.684751+00:00",
+  "tool_version": "1.0.1",
+  "created_at": "2026-02-21T14:17:32.317682+00:00",
   "files": [
     {
       "path": "cover.png",
       "sha256": "d63ec94a8a8662cb221f339f008742c6c695bcf0ba4b70787b72706a76d80835",
       "size": 81093,
-      "url": "https://hq.bitstation.local/api/v1/tools/bitmusic/1.0.0/files/cover.png"
+      "url": "https://hq.bitstation.local/api/v1/tools/bitmusic/1.0.1/files/cover.png"
     },
     {
       "path": "frontend/index.html",
-      "sha256": "d6f294cb3b23d113f3c4d4a88163a67603d283c9f03a94ad9275f38abf0bec5f",
-      "size": 8592,
-      "url": "https://hq.bitstation.local/api/v1/tools/bitmusic/1.0.0/files/frontend/index.html"
+      "sha256": "7a959ea3974dda64bf4e20a4262381d2fc8ba0a82d832de05fb737164c7531fd",
+      "size": 9520,
+      "url": "https://hq.bitstation.local/api/v1/tools/bitmusic/1.0.1/files/frontend/index.html"
     },
     {
       "path": "frontend/script.js",
-      "sha256": "5ccdb278e262bdf23dd00069ac1a31ecd27980f29a06df06761b983a43d4ed9d",
-      "size": 28862,
-      "url": "https://hq.bitstation.local/api/v1/tools/bitmusic/1.0.0/files/frontend/script.js"
+      "sha256": "a7869644f8056caf1c9202b472f69e4fa8b942f15b709073c7bc00f89a714979",
+      "size": 52980,
+      "url": "https://hq.bitstation.local/api/v1/tools/bitmusic/1.0.1/files/frontend/script.js"
     },
     {
       "path": "frontend/style.css",
-      "sha256": "ae6d1348edbb43187e647f8cc08dc84199ae2af3b9d471ef24a08df2af449c65",
-      "size": 15254,
-      "url": "https://hq.bitstation.local/api/v1/tools/bitmusic/1.0.0/files/frontend/style.css"
+      "sha256": "a8d03f5820d805505ee7e50548a77a38ccb1fb4f5ed0eb09ee8a5fb4124919a8",
+      "size": 21999,
+      "url": "https://hq.bitstation.local/api/v1/tools/bitmusic/1.0.1/files/frontend/style.css"
     },
     {
       "path": "icon.png",
       "sha256": "d63ec94a8a8662cb221f339f008742c6c695bcf0ba4b70787b72706a76d80835",
       "size": 81093,
-      "url": "https://hq.bitstation.local/api/v1/tools/bitmusic/1.0.0/files/icon.png"
+      "url": "https://hq.bitstation.local/api/v1/tools/bitmusic/1.0.1/files/icon.png"
     },
     {
       "path": "manifest.json",
-      "sha256": "5447bc4bea6dd44850d35119ce1043437ac687aef9d0faeaa7bf269b0a7647f1",
-      "size": 310,
-      "url": "https://hq.bitstation.local/api/v1/tools/bitmusic/1.0.0/files/manifest.json"
+      "sha256": "c6aaa471533a8aac85e5f95aaf5989fb47f725302f91de7a28ca6dba53bc62ea",
+      "size": 2728,
+      "url": "https://hq.bitstation.local/api/v1/tools/bitmusic/1.0.1/files/manifest.json"
     },
     {
       "path": "requirements.lock.txt",
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "size": 0,
-      "url": "https://hq.bitstation.local/api/v1/tools/bitmusic/1.0.0/files/requirements.lock.txt"
+      "url": "https://hq.bitstation.local/api/v1/tools/bitmusic/1.0.1/files/requirements.lock.txt"
     },
     {
       "path": "runner/run.ps1",
       "sha256": "a369cf6ba2f0838aeeb71a371e6ea768b94e4f36c19f97b1cd6b04b155e71b9d",
       "size": 49,
-      "url": "https://hq.bitstation.local/api/v1/tools/bitmusic/1.0.0/files/runner/run.ps1",
+      "url": "https://hq.bitstation.local/api/v1/tools/bitmusic/1.0.1/files/runner/run.ps1",
       "executable": true
     },
     {
       "path": "tool.json",
-      "sha256": "45853c79436d6eea09c8f2fd0df3ba68538a8de43f1e08601eb960dfe6f3537a",
+      "sha256": "c506bc9c5e558e1d4d2140224e5b596c6a5e6827c6b0afc76ed43cffa9db741e",
       "size": 579,
-      "url": "https://hq.bitstation.local/api/v1/tools/bitmusic/1.0.0/files/tool.json"
+      "url": "https://hq.bitstation.local/api/v1/tools/bitmusic/1.0.1/files/tool.json"
     }
   ],
   "delete_policy": "safe",
@@ -73,5 +73,5 @@
     "__pycache__/**",
     "*.pyc"
   ],
-  "manifest_hash": "21138a90e10969cc63dedb30547cf251c454165164ffb02ea459a6ac0e908568"
+  "manifest_hash": "fb99c99a2c3309834f02609dfdab9a9b47481d05afdbfdeb24262fd8c8534eb9"
 }

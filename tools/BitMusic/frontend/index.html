@@ -1,181 +1,220 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BitMusic</title>
-    <link rel="stylesheet" href="style.css">
-    <!-- Google Fonts for sleek futuristic typography -->
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <!-- Phosphor Icons for minimalist outlines -->
-    <script src="https://unpkg.com/@phosphor-icons/web"></script>
-    <!-- JSZip for local .bm extracting -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BitMusic</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 
 <body>
-    <div class="app-container">
-        <!-- Sidebar -->
-        <aside class="sidebar">
-            <div class="sidebar-header">
-                <i class="ph ph-headphones neon-icon"></i>
-                <h1 class="logo-text">Bit<span class="neon-text">Music</span></h1>
-            </div>
+  <div class="app-container">
 
-            <nav class="sidebar-nav">
-                <p class="nav-section">Library</p>
-                <input type="file" id="bm-file-input" accept=".bm" style="display: none;">
-                <a href="#" class="nav-item" id="btn-load-bm"><i class="ph ph-folder-open"></i> Load .bm Album</a>
-                <a href="#" class="nav-item active"><i class="ph ph-music-notes"></i> Songs</a>
-                <a href="#" class="nav-item"><i class="ph ph-record"></i> Albums</a>
-                <a href="#" class="nav-item"><i class="ph ph-users"></i> Artists</a>
+    <!-- ─── Sidebar ─────────────────────────────────────────── -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <button class="btn-back" id="btn-back" title="Volver a BitStation">
+          <i class="ph ph-arrow-left"></i>
+        </button>
+        <i class="ph ph-headphones neon-icon"></i>
+        <h1 class="logo-text">Bit<span class="neon-text">Music</span></h1>
+      </div>
 
-                <p class="nav-section">Playlists</p>
-                <a href="#" class="nav-item"><i class="ph ph-list-heart"></i> Favorites</a>
-                <a href="#" class="nav-item"><i class="ph ph-clock-counter-clockwise"></i> Recently Played</a>
-                <a href="#" class="nav-item"><i class="ph ph-plus-circle"></i> New Playlist</a>
-            </nav>
-        </aside>
+      <!-- Directory picker -->
+      <div class="sidebar-dir">
+        <button class="btn-dir" id="btn-pick-dir">
+          <i class="ph ph-folder-open"></i> Directorio
+        </button>
+        <button class="icon-btn btn-icon-sm" id="btn-refresh-dir" title="Actualizar biblioteca">
+          <i class="ph ph-arrows-clockwise"></i>
+        </button>
+      </div>
+      <div class="dir-status" id="dir-status">Sin directorio seleccionado</div>
 
-        <!-- Main Content Area -->
-        <main class="main-content">
-            <header class="main-header">
-                <div class="search-bar">
-                    <i class="ph ph-magnifying-glass"></i>
-                    <input type="text" placeholder="Search in BitMusic...">
-                </div>
-                <div class="user-profile">
-                    <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=BitStation" alt="Profile" class="avatar">
-                </div>
-            </header>
+      <!-- Restore previous directory banner -->
+      <div class="restore-banner" id="restore-banner" style="display:none">
+        <span id="restore-banner-text"></span>
+        <div class="restore-actions">
+          <button class="btn-restore" id="btn-restore-yes">Cargar</button>
+          <button class="icon-btn btn-icon-sm" id="btn-restore-no"><i class="ph ph-x"></i></button>
+        </div>
+      </div>
 
-            <section class="banner" id="main-banner">
-                <div class="banner-info">
-                    <h2>Retro Wave <span class="neon-text">Essentials</span></h2>
-                    <p>The best synthwave tracks of the decade.</p>
-                    <button class="btn-primary"><i class="ph-fill ph-play-circle"></i> Play All</button>
-                </div>
-                <!-- Banner decorative art -->
-                <div class="banner-art"></div>
-            </section>
+      <!-- Albums list -->
+      <p class="nav-section">Álbumes</p>
+      <div class="albums-list" id="albums-list">
+        <div class="empty-state-sidebar">
+          <i class="ph ph-music-notes-simple"></i>
+          <span>Carga un directorio con .bm</span>
+        </div>
+      </div>
 
-            <section class="track-list-section">
-                <h3 class="section-title">Current Library</h3>
-                <div class="track-list-header">
-                    <span class="col-num">#</span>
-                    <span class="col-title">Title</span>
-                    <span class="col-album">Album</span>
-                    <span class="col-time"><i class="ph ph-clock"></i></span>
-                </div>
-                <ul class="track-list" id="track-list">
-                    <!-- Dynamic Tracks injected by JS -->
-                </ul>
-            </section>
+      <!-- Hidden inputs -->
+      <input type="file" id="dir-input" multiple webkitdirectory style="display:none">
+    </aside>
 
-            <!-- Karaoke View (Hidden by default) -->
-            <section class="karaoke-view" id="karaoke-view" style="display: none;">
-                <canvas class="visualizer-canvas" id="karaoke-canvas"></canvas>
-                <div class="karaoke-controls-top">
-                    <button class="icon-btn btn-karaoke-action" id="btn-exit-karaoke"><i class="ph ph-arrow-left"></i>
-                        Exit Karaoke</button>
-                </div>
-                <div class="lyrics-container">
-                    <div class="lyrics-wrapper">
-                        <div class="lyrics-line lyrics-prev" id="lyrics-prev"></div>
-                        <div class="lyrics-line lyrics-current" id="lyrics-current"></div>
-                        <div class="lyrics-line lyrics-next" id="lyrics-next"></div>
-                        <div class="lyrics-line lyrics-next-2" id="lyrics-next2"></div>
-                    </div>
-                </div>
-                <div class="karaoke-controls-bottom">
-                    <button class="icon-btn btn-karaoke-action" id="btn-toggle-karaoke-mixer"><i
-                            class="ph ph-sliders-horizontal"></i> Mixer</button>
-                </div>
-            </section>
-        </main>
+    <!-- ─── Main Content ──────────────────────────────────────── -->
+    <main class="main-content">
+      <header class="main-header">
+        <div class="search-bar">
+          <i class="ph ph-magnifying-glass"></i>
+          <input type="text" id="search-input" placeholder="Buscar canciones, artistas, álbumes...">
+          <button class="btn-icon-sm" id="btn-clear-search" style="display:none">
+            <i class="ph ph-x"></i>
+          </button>
+        </div>
+        <div class="user-profile">
+          <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=BitStation" alt="Profile" class="avatar">
+        </div>
+      </header>
+
+      <!-- Dynamic Banner -->
+      <section class="banner" id="main-banner">
+        <div class="banner-art-bg" id="banner-art-bg"></div>
+        <div class="banner-info">
+          <h2 id="banner-title">Bit<span class="neon-text">Music</span></h2>
+          <p id="banner-subtitle">Selecciona un directorio con archivos .bm para comenzar</p>
+          <button class="btn-primary" id="btn-play-all" style="display:none">
+            <i class="ph-fill ph-play-circle"></i> Play All
+          </button>
+        </div>
+      </section>
+
+      <!-- Track List -->
+      <section class="track-list-section">
+        <div class="track-list-header-bar">
+          <h3 class="section-title" id="section-title">Biblioteca</h3>
+          <span class="track-count" id="track-count"></span>
+        </div>
+        <div class="track-list-header">
+          <span class="col-num">#</span>
+          <span class="col-title">Título</span>
+          <span class="col-album">Álbum</span>
+          <span class="col-time"><i class="ph ph-clock"></i></span>
+        </div>
+        <ul class="track-list" id="track-list">
+          <li class="empty-state-tracks">
+            <i class="ph ph-folder-open"></i>
+            <p>Selecciona un directorio con archivos .bm</p>
+          </li>
+        </ul>
+      </section>
+
+      <!-- ─── Karaoke View ──────────────────────────────────── -->
+      <section class="karaoke-view" id="karaoke-view" style="display:none">
+        <canvas class="visualizer-canvas" id="karaoke-canvas"></canvas>
+        <div class="karaoke-controls-top">
+          <button class="icon-btn btn-karaoke-action" id="btn-exit-karaoke">
+            <i class="ph ph-arrow-left"></i> Exit Karaoke
+          </button>
+        </div>
+        <div class="lyrics-container">
+          <div class="lyrics-wrapper">
+            <div class="lyrics-line lyrics-prev" id="lyrics-prev"></div>
+            <div class="lyrics-line lyrics-current" id="lyrics-current"></div>
+            <div class="lyrics-line lyrics-next" id="lyrics-next"></div>
+            <div class="lyrics-line lyrics-next-2" id="lyrics-next2"></div>
+          </div>
+        </div>
+        <div class="karaoke-controls-bottom">
+          <button class="icon-btn btn-karaoke-action" id="btn-toggle-karaoke-mixer">
+            <i class="ph ph-sliders-horizontal"></i> Mixer
+          </button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ─── Bottom Player Bar ──────────────────────────────────── -->
+  <div class="player-bar">
+    <!-- Now Playing -->
+    <div class="now-playing">
+      <div class="np-art">
+        <img id="np-img"
+          src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' fill='%23111'%3E%3Crect width='100' height='100'/%3E%3C/svg%3E"
+          alt="Album Art">
+      </div>
+      <div class="np-info">
+        <h4 id="np-title">Sin reproducción</h4>
+        <p id="np-artist">-</p>
+      </div>
+      <button class="icon-btn btn-like" id="btn-like" title="Me gusta (L)">
+        <i class="ph ph-heart"></i>
+      </button>
     </div>
 
-    <!-- Bottom Player / iTunes style -->
-    <div class="player-bar">
-        <!-- Track Info -->
-        <div class="now-playing">
-            <div class="np-art">
-                <img id="np-img"
-                    src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' fill='%23111'%3E%3Crect width='100' height='100'/%3E%3C/svg%3E"
-                    alt="Album Art">
-            </div>
-            <div class="np-info">
-                <h4 id="np-title" class="marquee">No Track Selected</h4>
-                <p id="np-artist">-</p>
-            </div>
-            <button class="icon-btn btn-like"><i class="ph ph-heart"></i></button>
+    <!-- Controls -->
+    <div class="player-controls-container">
+      <div class="player-controls">
+        <button class="icon-btn" id="btn-shuffle" title="Aleatorio (S)"><i class="ph ph-shuffle"></i></button>
+        <button class="icon-btn" id="btn-prev"><i class="ph-fill ph-skip-back"></i></button>
+        <button class="icon-btn play-pause-btn" id="play-btn"><i class="ph-fill ph-play-circle"></i></button>
+        <button class="icon-btn" id="btn-next"><i class="ph-fill ph-skip-forward"></i></button>
+        <button class="icon-btn" id="btn-repeat" title="Repetir"><i class="ph ph-repeat"></i></button>
+      </div>
+      <div class="progress-container">
+        <span class="time-current" id="time-current">0:00</span>
+        <div class="progress-bar" id="progress-bar">
+          <div class="progress-fill" id="progress-fill" style="width:0%">
+            <div class="progress-thumb"></div>
+          </div>
         </div>
-
-        <!-- Controls -->
-        <div class="player-controls-container">
-            <div class="player-controls">
-                <button class="icon-btn"><i class="ph ph-shuffle"></i></button>
-                <button class="icon-btn"><i class="ph-fill ph-skip-back"></i></button>
-                <button class="icon-btn play-pause-btn" id="play-btn"><i class="ph-fill ph-play-circle"></i></button>
-                <button class="icon-btn"><i class="ph-fill ph-skip-forward"></i></button>
-                <button class="icon-btn"><i class="ph ph-repeat"></i></button>
-            </div>
-            <div class="progress-container">
-                <span class="time-current">0:00</span>
-                <div class="progress-bar">
-                    <div class="progress-fill" style="width: 0%;"></div>
-                    <div class="progress-thumb"></div>
-                </div>
-                <span class="time-total">0:00</span>
-            </div>
-        </div>
-
-        <!-- Extra Tools -->
-        <div class="player-tools">
-            <button class="icon-btn" id="btn-enter-karaoke" title="Enter Karaoke Mode"><i
-                    class="ph ph-microphone-stage"></i></button>
-            <button class="icon-btn"><i class="ph ph-microphone-stage"></i></button>
-            <button class="icon-btn"><i class="ph ph-list-dashes"></i></button>
-            <button class="icon-btn"><i class="ph ph-speaker-high"></i></button>
-            <div class="volume-bar">
-                <div class="volume-fill" style="width: 70%;"></div>
-                <div class="volume-thumb"></div>
-            </div>
-        </div>
+        <span class="time-total" id="time-total">0:00</span>
+      </div>
     </div>
 
-    <!-- Mixer Panel (Hidden by default) -->
-    <div class="mixer-panel" id="mixer-panel">
-        <div class="mixer-header">
-            <h3>Karaoke Mixer</h3>
-            <button class="icon-btn" id="btn-close-mixer"><i class="ph ph-x"></i></button>
+    <!-- Extra Tools -->
+    <div class="player-tools">
+      <button class="icon-btn" id="btn-enter-karaoke" title="Modo Karaoke (K)">
+        <i class="ph ph-microphone-stage"></i>
+      </button>
+      <button class="icon-btn" id="btn-queue" title="Cola de reproducción">
+        <i class="ph ph-list-dashes"></i>
+      </button>
+      <i class="ph ph-speaker-high vol-icon" id="vol-icon"></i>
+      <div class="volume-bar" id="volume-bar">
+        <div class="volume-fill" id="volume-fill" style="width:70%">
+          <div class="volume-thumb"></div>
         </div>
-        <div class="mixer-sliders">
-            <div class="slider-group">
-                <label>Master</label>
-                <input type="range" id="vol-master" min="0" max="1" step="0.01" value="0.8">
-            </div>
-            <div class="slider-group">
-                <label>Vocals</label>
-                <input type="range" id="vol-vocals" min="0" max="1" step="0.01" value="0.8">
-            </div>
-            <div class="slider-group">
-                <label>Drums</label>
-                <input type="range" id="vol-drums" min="0" max="1" step="0.01" value="0.8">
-            </div>
-            <div class="slider-group">
-                <label>Bass</label>
-                <input type="range" id="vol-bass" min="0" max="1" step="0.01" value="0.8">
-            </div>
-            <div class="slider-group">
-                <label>Other</label>
-                <input type="range" id="vol-other" min="0" max="1" step="0.01" value="0.8">
-            </div>
-        </div>
+      </div>
     </div>
+  </div>
 
-    <script src="script.js"></script>
+  <!-- ─── Mixer Panel ───────────────────────────────────────── -->
+  <div class="mixer-panel" id="mixer-panel">
+    <div class="mixer-header">
+      <h3>Mixer de Pistas</h3>
+      <button class="icon-btn" id="btn-close-mixer"><i class="ph ph-x"></i></button>
+    </div>
+    <div class="mixer-sliders">
+      <div class="slider-group">
+        <label style="color:var(--color-drums)">Drums</label>
+        <input type="range" id="vol-drums" min="0" max="1" step="0.01" value="0.8">
+      </div>
+      <div class="slider-group">
+        <label style="color:var(--color-bass)">Bass</label>
+        <input type="range" id="vol-bass" min="0" max="1" step="0.01" value="0.8">
+      </div>
+      <div class="slider-group">
+        <label style="color:var(--color-vocals)">Vocals</label>
+        <input type="range" id="vol-vocals" min="0" max="1" step="0.01" value="0.8">
+      </div>
+      <div class="slider-group">
+        <label style="color:var(--color-other)">Other</label>
+        <input type="range" id="vol-other" min="0" max="1" step="0.01" value="0.8">
+      </div>
+      <div class="slider-group">
+        <label>Master</label>
+        <input type="range" id="vol-master" min="0" max="1" step="0.01" value="0.7">
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
 </body>
 
 </html>
