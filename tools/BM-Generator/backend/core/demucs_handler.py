@@ -54,6 +54,59 @@ def _ensure_torch_home():
         logger.info(f"Set TORCH_HOME={cache_dir}")
 
 
+def _load_audio(input_path: Path, target_sr: Optional[int] = None):
+    """
+    Load audio using soundfile (avoids torchcodec dependency in newer torchaudio).
+    Falls back to torchaudio with explicit soundfile backend if direct sf fails.
+    """
+    import torch
+
+    try:
+        import soundfile as sf
+        data, sr = sf.read(str(input_path), dtype="float32")
+        if data.ndim == 1:
+            wav = torch.from_numpy(data).unsqueeze(0)
+        else:
+            wav = torch.from_numpy(data.T.copy())
+
+        if target_sr and sr != target_sr:
+            import julius
+            wav = julius.resample_frac(wav, sr, target_sr)
+            sr = target_sr
+        return wav, sr
+    except Exception as sf_err:
+        logger.warning(f"soundfile load failed ({sf_err}), trying torchaudio with soundfile backend...")
+        import torchaudio
+        try:
+            wav, sr = torchaudio.load(str(input_path), backend="soundfile")
+        except TypeError:
+            wav, sr = torchaudio.load(str(input_path))
+        if target_sr and sr != target_sr:
+            wav = torchaudio.functional.resample(wav, sr, target_sr)
+            sr = target_sr
+        return wav, sr
+
+
+def _save_audio(path: Path, wav, sr: int):
+    """
+    Save audio tensor as WAV using soundfile (avoids torchcodec dependency).
+    Falls back to torchaudio with explicit soundfile backend if direct sf fails.
+    """
+    try:
+        import soundfile as sf
+        wav_np = wav.cpu().numpy()
+        if wav_np.ndim == 2:
+            wav_np = wav_np.T
+        sf.write(str(path), wav_np, sr, subtype="PCM_16")
+    except Exception as sf_err:
+        logger.warning(f"soundfile save failed ({sf_err}), trying torchaudio with soundfile backend...")
+        import torchaudio
+        try:
+            torchaudio.save(str(path), wav, sr, backend="soundfile")
+        except TypeError:
+            torchaudio.save(str(path), wav, sr)
+
+
 def run_demucs_inprocess(
     input_path: Path,
     output_dir: Path,
@@ -61,13 +114,12 @@ def run_demucs_inprocess(
 ) -> Path:
     """
     Separate stems using the in-process demucs Python API.
-    Avoids subprocess numpy/torch loading issues.
+    Uses soundfile for I/O to avoid torchcodec dependency.
     """
     global _cached_model
     _ensure_torch_home()
 
     import torch
-    import torchaudio
     from demucs.apply import apply_model
     from demucs.pretrained import get_model
 
@@ -79,11 +131,7 @@ def run_demucs_inprocess(
     model = _cached_model
     model_device = next(model.parameters()).device
 
-    wav, sr = torchaudio.load(str(input_path))
-
-    if sr != model.samplerate:
-        wav = torchaudio.functional.resample(wav, sr, model.samplerate)
-        sr = model.samplerate
+    wav, sr = _load_audio(input_path, target_sr=model.samplerate)
 
     ref = wav.mean(0)
     wav = (wav - ref.mean()) / ref.std()
@@ -98,19 +146,46 @@ def run_demucs_inprocess(
 
     for idx, name in enumerate(model.sources):
         stem_wav = sources[0, idx].cpu()
-        torchaudio.save(str(stem_dir / f"{name}.wav"), stem_wav, sr)
+        _save_audio(stem_dir / f"{name}.wav", stem_wav, model.samplerate)
         logger.info(f"  Saved {name}.wav")
 
     return stem_dir
 
 
-def _get_demucs_command() -> list:
-    venv_bin = Path(sys.executable).parent
-    for name in ("demucs.exe", "demucs"):
-        candidate = venv_bin / name
-        if candidate.exists():
-            return [str(candidate)]
-    return [sys.executable, "-m", "demucs"]
+# Python code injected into the CLI subprocess to patch torchaudio.save,
+# avoiding the torchcodec ImportError when saving separated stems.
+_CLI_WRAPPER = """\
+import sys
+sys.argv[0] = "demucs"
+try:
+    import soundfile as _sf
+    import torchaudio as _ta
+    _orig_save = _ta.save
+    def _patched_save(filepath, src, sample_rate, **kw):
+        fpath = str(filepath)
+        if fpath.lower().endswith((".wav", ".flac")):
+            wav_np = src.cpu().numpy()
+            if wav_np.ndim == 2:
+                wav_np = wav_np.T
+            enc = kw.get("encoding", "PCM_S")
+            bps = kw.get("bits_per_sample", 16)
+            if enc == "PCM_F":
+                sub = "FLOAT"
+            elif bps == 24:
+                sub = "PCM_24"
+            elif bps == 32:
+                sub = "PCM_32"
+            else:
+                sub = "PCM_16"
+            _sf.write(fpath, wav_np, sample_rate, subtype=sub)
+        else:
+            _orig_save(filepath, src, sample_rate, **kw)
+    _ta.save = _patched_save
+except Exception:
+    pass
+from demucs.separate import main
+main()
+"""
 
 
 def run_demucs_cli(
@@ -119,19 +194,23 @@ def run_demucs_cli(
     device: str = "cuda",
 ) -> Path:
     """
-    Run Demucs via CLI subprocess (fallback if in-process fails).
+    Run Demucs via CLI subprocess with torchaudio patched to use soundfile,
+    avoiding the torchcodec dependency for saving stems.
     """
     _ensure_torch_home()
 
-    cmd_base = _get_demucs_command()
-    cmd = cmd_base + [
+    cmd = [
+        sys.executable, "-c", _CLI_WRAPPER,
         "-n", DEMUCS_MODEL,
         "-o", str(output_dir),
         "--device", device,
         str(input_path),
     ]
 
-    logger.info(f"Running Demucs CLI: {' '.join(cmd)}")
+    logger.info(
+        f"Running Demucs CLI: {sys.executable} -c [wrapper] "
+        f"-n {DEMUCS_MODEL} -o {output_dir} --device {device} {input_path}"
+    )
 
     env = os.environ.copy()
     if env.get("TORCH_HOME"):
@@ -221,7 +300,6 @@ def separate_track(
         hw = f"GPU: {gpu_name}" if has_cuda else "CPU"
         progress_callback(job_id, 20, f"Separating with Demucs ({hw})...")
 
-    # Try in-process first (faster, avoids subprocess numpy issues)
     raw_dir = None
     try:
         raw_dir = run_demucs_inprocess(input_path, temp_demucs_out, device=device)

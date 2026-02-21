@@ -1,7 +1,7 @@
 {
     "tool_id": "bitmusic",
     "name": "BitMusic",
-    "version": "1.0.5",
+    "version": "1.0.6",
     "category": "app",
     "platforms": [
         "windows",
