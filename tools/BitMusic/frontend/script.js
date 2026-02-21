@@ -231,23 +231,28 @@ function setupEventListeners() {
         seek(widthPercent * duration);
     });
 
-    btnKaraokeToggle.addEventListener('click', () => {
-        mixerPanel.classList.toggle('open');
-        if (karaokeView.style.display === 'none') {
-            karaokeView.style.display = 'flex';
-            mainBanner.style.display = 'none';
-            document.querySelector('.track-list-section').style.display = 'none';
-        } else {
-            karaokeView.style.display = 'none';
-            mainBanner.style.display = 'flex';
-            document.querySelector('.track-list-section').style.display = 'block';
-        }
-        resizeCanvas();
-    });
+    const btnEnterKaraoke = document.getElementById('btn-enter-karaoke');
+    const btnExitKaraoke = document.getElementById('btn-exit-karaoke');
+    const btnToggleMixer = document.getElementById('btn-toggle-karaoke-mixer');
 
-    btnCloseMixer.addEventListener('click', () => {
-        mixerPanel.classList.remove('open');
-    });
+    if (btnEnterKaraoke) {
+        btnEnterKaraoke.addEventListener('click', toggleKaraokeMode);
+    }
+    if (btnExitKaraoke) {
+        btnExitKaraoke.addEventListener('click', toggleKaraokeMode);
+    }
+    if (btnToggleMixer) {
+        btnToggleMixer.addEventListener('click', () => {
+            mixerPanel.classList.toggle('open');
+        });
+    }
+
+    const btnCloseMixer = document.getElementById('btn-close-mixer');
+    if (btnCloseMixer) {
+        btnCloseMixer.addEventListener('click', () => {
+            mixerPanel.classList.remove('open');
+        });
+    }
 
     // Mixer sliders
     Object.keys(sliders).forEach(key => {
@@ -544,6 +549,35 @@ function updateUI(currentPos) {
     }
 }
 
+function toggleKaraokeMode() {
+    const isKaraokeMode = karaokeView.style.display !== 'none';
+    const sidebar = document.querySelector('.sidebar');
+    const mainHeader = document.querySelector('.main-header');
+    const mainBanner = document.getElementById('main-banner');
+    const trackListSection = document.querySelector('.track-list-section');
+    const playerBar = document.querySelector('.player-bar');
+
+    if (isKaraokeMode) {
+        karaokeView.style.display = 'none';
+        mixerPanel.classList.remove('open');
+        // Show everything else
+        if (sidebar) sidebar.style.display = '';
+        if (mainHeader) mainHeader.style.display = '';
+        if (mainBanner) mainBanner.style.display = '';
+        if (trackListSection) trackListSection.style.display = '';
+        if (playerBar) playerBar.style.display = '';
+    } else {
+        karaokeView.style.display = 'flex';
+        // Hide everything else
+        if (sidebar) sidebar.style.display = 'none';
+        if (mainHeader) mainHeader.style.display = 'none';
+        if (mainBanner) mainBanner.style.display = 'none';
+        if (trackListSection) trackListSection.style.display = 'none';
+        if (playerBar) playerBar.style.display = 'none';
+        resizeCanvas();
+    }
+}
+
 // --- Lyrics Parser ---
 
 function parseLrc(lrcText) {
@@ -618,8 +652,8 @@ function initWebGL() {
 }
 
 function resizeCanvas() {
-    const width = karaokeView.clientWidth * 0.6;
-    const height = width * 0.5; // Maintain a reasonable aspect ratio
+    const width = window.innerWidth;
+    const height = window.innerHeight;
     canvas.style.width = width + 'px';
     canvas.style.height = height + 'px';
     canvas.width = width * (window.devicePixelRatio || 1);

@@ -544,80 +544,137 @@ body {
     background: var(--accent-cyan);
 }
 
-/* Karaoke View */
+/* Karaoke View - Fullscreen Immersive */
 .karaoke-view {
-    flex: 1;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    height: 100vh;
+    background: #000000;
+    z-index: 100;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
+    overflow: hidden;
+}
+
+.visualizer-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 0;
+}
+
+.karaoke-controls-top {
+    position: absolute;
+    top: 2rem;
+    left: 2rem;
+    z-index: 20;
+}
+
+.karaoke-controls-bottom {
+    position: absolute;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+}
+
+.btn-karaoke-action {
+    background: rgba(18, 18, 24, 0.4);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text-secondary);
+    padding: 0.6rem 1.2rem;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+}
+
+.btn-karaoke-action:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+.lyrics-container {
     position: absolute;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    background: radial-gradient(circle at center, rgba(0, 240, 255, 0.05), var(--bg-main));
-    z-index: 15;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     padding: 2rem;
+    pointer-events: none;
+    mask-image: linear-gradient(to bottom, transparent, black 30%, black 70%, transparent);
+    -webkit-mask-image: linear-gradient(to bottom, transparent, black 30%, black 70%, transparent);
 }
 
-#karaoke-canvas {
-    width: 60%;
-    height: 150px;
-    margin-bottom: 2rem;
-    filter: drop-shadow(0 0 10px var(--accent-cyan));
-}
-
-.lyrics-container {
+.lyrics-wrapper {
+    height: 100%;
     width: 100%;
-    max-width: 800px;
-    height: 50vh;
-    overflow-y: auto;
-    text-align: center;
-    mask-image: linear-gradient(to bottom, transparent, black 15%, black 85%, transparent);
-    -webkit-mask-image: linear-gradient(to bottom, transparent, black 15%, black 85%, transparent);
-    padding: 20vh 0;
-    scroll-behavior: smooth;
-}
-
-.lyrics-container::-webkit-scrollbar {
-    display: none;
+    max-width: 900px;
+    overflow-y: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 #lyrics-list {
     list-style: none;
     margin: 0;
-    padding: 0;
+    padding: 50vh 0;
+    /* padding to allow scrolling to center */
+    width: 100%;
+    text-align: center;
+    transition: transform 0.3s ease-out;
 }
 
 #lyrics-list li {
-    font-size: 1.5rem;
+    font-size: 1.4rem;
     color: var(--text-secondary);
-    margin: 1.5rem 0;
+    margin: 1rem 0;
     transition: all 0.3s ease;
     opacity: 0.4;
+    text-shadow: 0 2px 20px rgba(0, 0, 0, 0.8);
 }
 
 #lyrics-list li.active {
-    font-size: 2.2rem;
-    font-weight: 700;
+    font-size: 2.5rem;
+    font-weight: 600;
     color: var(--text-primary);
     opacity: 1;
-    text-shadow: 0 0 15px var(--accent-magenta);
+    text-shadow: 0 0 40px rgba(255, 187, 51, 0.3), 0 4px 30px rgba(0, 0, 0, 0.9);
     transform: scale(1.05);
 }
 
 /* Mixer Panel */
 .mixer-panel {
-    position: absolute;
+    position: fixed;
     bottom: -300px;
-    left: 250px;
-    right: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 600px;
     height: 250px;
     background: rgba(18, 18, 21, 0.95);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    border-top: 1px solid var(--accent-cyan);
+    border: 1px solid var(--border-color);
+    border-bottom: none;
+    border-radius: 16px 16px 0 0;
     z-index: 25;
     padding: 1.5rem 3rem;
     transition: bottom 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
@@ -625,7 +682,7 @@ body {
 }
 
 .mixer-panel.open {
-    bottom: 90px;
+    bottom: 0px;
 }
 
 .mixer-header {

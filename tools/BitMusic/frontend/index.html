@@ -75,11 +75,19 @@
 
             <!-- Karaoke View (Hidden by default) -->
             <section class="karaoke-view" id="karaoke-view" style="display: none;">
-                <canvas id="karaoke-canvas"></canvas>
+                <canvas class="visualizer-canvas" id="karaoke-canvas"></canvas>
+                <div class="karaoke-controls-top">
+                    <button class="icon-btn btn-karaoke-action" id="btn-exit-karaoke"><i class="ph ph-arrow-left"></i>
+                        Exit Karaoke</button>
+                </div>
                 <div class="lyrics-container">
                     <ul id="lyrics-list">
                         <!-- Lyrics injected by JS -->
                     </ul>
+                </div>
+                <div class="karaoke-controls-bottom">
+                    <button class="icon-btn btn-karaoke-action" id="btn-toggle-karaoke-mixer"><i
+                            class="ph ph-sliders-horizontal"></i> Mixer</button>
                 </div>
             </section>
         </main>
@@ -122,8 +130,8 @@
 
         <!-- Extra Tools -->
         <div class="player-tools">
-            <button class="icon-btn" id="btn-karaoke-toggle" title="Karaoke Mixer"><i
-                    class="ph ph-sliders-horizontal"></i></button>
+            <button class="icon-btn" id="btn-enter-karaoke" title="Enter Karaoke Mode"><i
+                    class="ph ph-microphone-stage"></i></button>
             <button class="icon-btn"><i class="ph ph-microphone-stage"></i></button>
             <button class="icon-btn"><i class="ph ph-list-dashes"></i></button>
             <button class="icon-btn"><i class="ph ph-speaker-high"></i></button>
