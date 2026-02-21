@@ -1,0 +1,14 @@
+{
+    "manifest_version": "1.0",
+    "tool_id": "bitmusic",
+    "tool_version": "1.0.0",
+    "api_contract": "toolbridge/1",
+    "frontend": {
+        "type": "web",
+        "entry": "index.html"
+    },
+    "capabilities": [],
+    "files": [],
+    "delete_policy": "safe",
+    "ignore_globs": []
+}

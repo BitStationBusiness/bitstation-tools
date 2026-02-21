@@ -27,14 +27,21 @@
     }, { passive: false });
   }
 
+  function normPath(p) { return (p || '').replace(/\\/g, '/').toLowerCase(); }
+
+  function isPathDuplicate(p) {
+    var norm = normPath(p);
+    return selectedFiles.some(function (f) { return normPath(f) === norm; });
+  }
+
   // Called from Flutter DropTarget when files are dragged onto the WebView
   window.onFilesDropped = function (paths) {
     if (!Array.isArray(paths) || paths.length === 0) return;
-    var newPaths = paths.filter(function (p) { return selectedFiles.indexOf(p) === -1; });
-    if (newPaths.length > 0) {
-      selectedFiles = selectedFiles.concat(newPaths);
-      renderFileList();
-    }
+    var added = 0;
+    paths.forEach(function (p) {
+      if (!isPathDuplicate(p)) { selectedFiles.push(p); added++; }
+    });
+    if (added > 0) renderFileList();
   };
 
   // --- Navigation ---
@@ -84,9 +91,11 @@
       });
       const files = result.files || [];
       if (files.length > 0) {
-        var newFiles = files.filter(function (f) { return selectedFiles.indexOf(f) === -1; });
-        selectedFiles = selectedFiles.concat(newFiles);
-        renderFileList();
+        var added = 0;
+        files.forEach(function (f) {
+          if (!isPathDuplicate(f)) { selectedFiles.push(f); added++; }
+        });
+        if (added > 0) renderFileList();
       }
     } catch (e) {
       console.error('[BM] pickFiles error:', e);
@@ -123,13 +132,15 @@
       const jobId = result.job_id || result.jobId;
       if (!jobId) throw new Error('No job_id');
       await waitForJob(jobId, (status) => {
-        const output = status.output || status.result || {};
-        if (output.analyzed_songs) {
-          analyzedSongs = output.analyzed_songs;
+        var output = status.output || status.result || {};
+        var songs = output.analyzed_songs;
+        if (songs && songs.length > 0) {
+          analyzedSongs = songs;
           renderMetadataForm();
           goToStep(2);
         } else {
-          alert('El analisis no devolvio canciones.');
+          var errMsg = output.error || (output.errors && output.errors.join(', '));
+          alert(errMsg || 'El analisis no devolvio canciones. Verifica que los archivos sean validos.');
         }
       });
     } catch (e) {
@@ -416,6 +427,11 @@
             clearInterval(pollTimer);
             onDone(status);
             resolve(status);
+            return;
+          }
+          if (state === 'cancelled') {
+            clearInterval(pollTimer);
+            reject(new Error('Job cancelado'));
             return;
           }
           if (state === 'failed' || state === 'error') {

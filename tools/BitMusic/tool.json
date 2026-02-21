@@ -1,0 +1,24 @@
+{
+    "tool_id": "bitmusic",
+    "name": "BitMusic",
+    "version": "1.0.0",
+    "category": "app",
+    "platforms": [
+        "windows"
+    ],
+    "entrypoint_windows": "runner/run.ps1",
+    "needs_models": false,
+    "supports_gpu_persistence": false,
+    "has_frontend": true,
+    "api_contract": "toolbridge/1",
+    "io_schema": {
+        "input": {
+            "type": "object",
+            "properties": {}
+        },
+        "output": {
+            "type": "object",
+            "properties": {}
+        }
+    }
+}
