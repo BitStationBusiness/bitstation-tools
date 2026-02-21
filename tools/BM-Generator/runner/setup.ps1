@@ -106,7 +106,10 @@ if ($OfflineMode) {
     }
 }
 else {
-    # Online: install core deps first
+    # Online: pin numpy <2 first (numpy 2.x has C-extension loading bugs with torch)
+    Write-Host "Pinning numpy <2.0..." -ForegroundColor Cyan
+    & "$VenvPip" install "numpy>=1.24,<2.0" --quiet
+
     Write-Host "Installing core dependencies (pydantic, mutagen, pydub, soundfile)..." -ForegroundColor Cyan
     & "$VenvPip" install pydantic mutagen pydub soundfile --quiet
     if ($LASTEXITCODE -ne 0) {
@@ -147,10 +150,10 @@ else {
         catch { }
     }
 
-    # Install PyTorch
+    # Install PyTorch (--extra-index-url keeps PyPI available for numpy/other deps)
     if ($hasNvidia) {
         Write-Host "Installing PyTorch with CUDA..." -ForegroundColor Cyan
-        & "$VenvPip" install torch torchaudio --index-url https://download.pytorch.org/whl/cu121 --quiet 2>$null
+        & "$VenvPip" install torch torchaudio --extra-index-url https://download.pytorch.org/whl/cu121 --quiet 2>$null
         if ($LASTEXITCODE -ne 0) {
             Write-Host "CUDA torch failed, falling back to CPU..." -ForegroundColor Yellow
             & "$VenvPip" install torch torchaudio --quiet
@@ -168,6 +171,10 @@ else {
         Write-Host "Retrying demucs install..." -ForegroundColor Yellow
         & "$VenvPip" install demucs
     }
+
+    # Re-enforce numpy <2 (demucs may have upgraded it)
+    Write-Host "Enforcing numpy <2.0 compatibility..." -ForegroundColor Cyan
+    & "$VenvPip" install "numpy>=1.24,<2.0" --quiet
 
     # Install remaining from requirements.txt
     Write-Host "Installing requirements.txt..." -ForegroundColor Cyan

@@ -206,14 +206,8 @@ def run_persistent_mode():
 
     logger.info("[FLASH] Pre-loading demucs model...")
     try:
-        import torch
-        from demucs.pretrained import get_model
-        _flash_model = get_model("htdemucs")
-        if torch.cuda.is_available():
-            _flash_model = _flash_model.cuda()
-            logger.info(f"[FLASH] Model loaded on GPU: {torch.cuda.get_device_name(0)}")
-        else:
-            logger.info("[FLASH] Model loaded on CPU")
+        from core.demucs_handler import preload_model
+        preload_model(device="auto")
     except Exception as e:
         logger.warning(f"[FLASH] Model preload failed (will load on first job): {e}")
 
