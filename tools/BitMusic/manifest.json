@@ -2,7 +2,7 @@
   "manifest_version": "1.0",
   "tool_id": "bitmusic",
   "tool_version": "1.0.4",
-  "created_at": "2026-02-21T16:55:55.729048+00:00",
+  "created_at": "2026-02-21T18:46:21.625571+00:00",
   "files": [
     {
       "path": "cover.png",
@@ -18,20 +18,20 @@
     },
     {
       "path": "frontend/index.html",
-      "sha256": "cd2752cab8ee8c6684e02106aa05598a3faa1eae51aa7bcb695d5200d272735a",
-      "size": 5976,
+      "sha256": "e9b6c0b4889814fd4e4b56725da8a5b8957ce3a54ab4796b41c3abe258e06255",
+      "size": 5233,
       "url": "https://hq.bitstation.local/api/v1/tools/bitmusic/1.0.4/files/frontend/index.html"
     },
     {
       "path": "frontend/script.js",
-      "sha256": "a7e783cd14095ab301b83d1b0c39e3b26d1d11dc349102a8546cbb4495c5aba3",
-      "size": 38976,
+      "sha256": "816a482eab664a653026e08eb0c85618ddb584eae4276fabce224506529a91b7",
+      "size": 36172,
       "url": "https://hq.bitstation.local/api/v1/tools/bitmusic/1.0.4/files/frontend/script.js"
     },
     {
       "path": "frontend/style.css",
-      "sha256": "79e74350e289dad29392fdc9da2924297a171e7e93329682e4a781b13b27fe6f",
-      "size": 17362,
+      "sha256": "18ad1e877d1b46ac50a0dc024417b89dbcf3348a7566fdd502e510ec8afc525b",
+      "size": 15860,
       "url": "https://hq.bitstation.local/api/v1/tools/bitmusic/1.0.4/files/frontend/style.css"
     },
     {
@@ -42,7 +42,7 @@
     },
     {
       "path": "manifest.json",
-      "sha256": "8c29251fe55d203428d2cc91a25aa70873b60440f9741dac076100a312e4ca9c",
+      "sha256": "9f31f1f0b0693f3c9a049ec3450fa285fcdd64f117a4ae5301d1dc618c78ab42",
       "size": 2984,
       "url": "https://hq.bitstation.local/api/v1/tools/bitmusic/1.0.4/files/manifest.json"
     },
@@ -79,5 +79,5 @@
     "__pycache__/**",
     "*.pyc"
   ],
-  "manifest_hash": "7a3f17e44bd5ec3046a08a19ae2480b845681a001d6934f2999c8437025fdb07"
+  "manifest_hash": "b15554541d90c4212a2aac7879acf320fe9641bec54f1995eb25949f2d4ce1c9"
 }
