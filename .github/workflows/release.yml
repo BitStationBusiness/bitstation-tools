@@ -29,10 +29,17 @@ jobs:
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
 
+      - name: List release assets
+        id: assets
+        run: |
+          echo "catalog=dist/catalog.json" >> $GITHUB_OUTPUT
+          echo "zips<<EOF" >> $GITHUB_OUTPUT
+          printf '%s\n' dist/tool_*.zip dist/frontend_*.zip | sort -u >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Publish GitHub Release assets
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/catalog.json
-            dist/tool_*.zip
-            dist/frontend_*.zip
+            ${{ steps.assets.outputs.catalog }}
+            ${{ steps.assets.outputs.zips }}
