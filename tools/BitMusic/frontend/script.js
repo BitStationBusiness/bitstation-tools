@@ -1025,7 +1025,10 @@ function setupEvents() {
   $('dir-input')?.addEventListener('change', handleDirInputChange);
 
   // Back to BitStation
-  $('btn-back')?.addEventListener('click', () => {
+  $('btn-back')?.addEventListener('click', async () => {
+    if (typeof ToolBridge !== 'undefined' && ToolBridge.isShellMode()) {
+      try { await ToolBridge.closeFrontend(); return; } catch (e) { /* fallback */ }
+    }
     try { history.back(); } catch (e) { try { window.close(); } catch (e2) { /* noop */ } }
   });
 
@@ -1317,6 +1320,7 @@ function drawVisualizer() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 document.addEventListener('DOMContentLoaded', async () => {
+  try { if (typeof ToolBridge !== 'undefined') await ToolBridge.handshake(); } catch (e) { /* standalone */ }
   setupEvents();
   setupMediaSession();
   initWebGL();

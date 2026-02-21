@@ -138,7 +138,11 @@ def _get_platform_output_dir(tool_id: str = "bm-generator") -> Path:
     system = platform.system().lower()
 
     if system == "linux" and "ANDROID_DATA" in os.environ:
-        base = Path(os.environ.get("EXTERNAL_STORAGE", "/sdcard")) / "Download"
+        app_data = os.environ.get("BITSTATION_FILES_DIR", "")
+        if app_data and Path(app_data).exists():
+            base = Path(app_data) / tool_id
+        else:
+            base = Path(os.environ.get("EXTERNAL_STORAGE", "/sdcard")) / "Music" / "BitStation"
     elif system == "windows":
         base = Path("C:/BitStation/Gallery") / tool_id
     else:

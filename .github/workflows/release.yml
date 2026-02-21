@@ -44,7 +44,7 @@ jobs:
       - name: Publish GitHub Release (latest)
         uses: softprops/action-gh-release@v2
         with:
-          name: Release ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
           body: |
             ## BitStation Tools
             - **catalog.json** — Catálogo de tools con URLs y SHA256

@@ -385,14 +385,27 @@
       const jobId = result.job_id || result.jobId;
       if (!jobId) throw new Error('No job_id');
 
-      await waitForJob(jobId, (status) => {
+      await waitForJob(jobId, async (status) => {
         progressFill.style.width = '100%';
         const output = status.output || status.result || {};
         if (output.bm_file_path) {
-          var fileName = output.bm_file_path.split(/[/\\]/).pop();
+          var filePath = output.bm_file_path;
+          var fileName = filePath.split(/[/\\]/).pop();
           buildStatus.innerHTML = '<strong>' + escapeHtml(fileName) + '</strong> generado correctamente.';
 
-          if (output.file_url) {
+          if (ToolBridge.isShellMode()) {
+            try { await ToolBridge.call('open_result', { path: filePath }); } catch (e) { /* ignore */ }
+
+            var openBtn = document.createElement('button');
+            openBtn.className = 'btn btn-primary';
+            openBtn.style.marginTop = '12px';
+            openBtn.textContent = 'Abrir archivo';
+            openBtn.onclick = async function () {
+              try { await ToolBridge.call('open_result', { path: filePath }); } catch (e) { alert('No se pudo abrir: ' + e.message); }
+            };
+            buildStatus.appendChild(document.createElement('br'));
+            buildStatus.appendChild(openBtn);
+          } else if (output.file_url) {
             var dlBtn = document.createElement('button');
             dlBtn.className = 'btn btn-primary';
             dlBtn.style.marginTop = '12px';
@@ -400,8 +413,6 @@
             dlBtn.onclick = function () { downloadBmFile(output.file_url, fileName); };
             buildStatus.appendChild(document.createElement('br'));
             buildStatus.appendChild(dlBtn);
-          } else if (!ToolBridge.isShellMode()) {
-            buildStatus.innerHTML += '<br><span style="color:var(--muted);font-size:12px">Guardado en Descargas</span>';
           }
         } else {
           buildStatus.textContent = 'Construccion completada.';
