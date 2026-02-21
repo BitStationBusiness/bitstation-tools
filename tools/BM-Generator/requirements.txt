@@ -4,3 +4,5 @@ mutagen>=1.47
 demucs>=4.0
 pydub>=0.25
 soundfile>=0.12
+# torchaudio>=2.9 requires torchcodec; pin to 2.8.x for stem separation without extra deps
+torchaudio>=2.0,<2.9

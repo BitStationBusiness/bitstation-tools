@@ -150,18 +150,18 @@ else {
         catch { }
     }
 
-    # Install PyTorch (--extra-index-url keeps PyPI available for numpy/other deps)
+    # Install PyTorch; torchaudio<2.9 to avoid torchcodec requirement (stem separation uses soundfile)
     if ($hasNvidia) {
         Write-Host "Installing PyTorch with CUDA..." -ForegroundColor Cyan
-        & "$VenvPip" install torch torchaudio --extra-index-url https://download.pytorch.org/whl/cu121 --quiet 2>$null
+        & "$VenvPip" install torch "torchaudio>=2.0,<2.9" --extra-index-url https://download.pytorch.org/whl/cu121 --quiet 2>$null
         if ($LASTEXITCODE -ne 0) {
             Write-Host "CUDA torch failed, falling back to CPU..." -ForegroundColor Yellow
-            & "$VenvPip" install torch torchaudio --quiet
+            & "$VenvPip" install torch "torchaudio>=2.0,<2.9" --quiet
         }
     }
     else {
         Write-Host "Installing PyTorch (CPU)..." -ForegroundColor Cyan
-        & "$VenvPip" install torch torchaudio --quiet
+        & "$VenvPip" install torch "torchaudio>=2.0,<2.9" --quiet
     }
 
     # Install demucs
