@@ -161,16 +161,6 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 .k-next{font-size:1.25rem;color:var(--text2);opacity:.6}
 .k-next2{font-size:1rem;color:var(--text3);opacity:.35}
 
-/* ─── Karaoke Inline (tab mode) ──────────────────────────── */
-.karaoke-inline{position:absolute;top:var(--header-h);left:0;right:0;bottom:calc(var(--player-h) + var(--nav-h));background:#000;z-index:5;overflow:hidden}
-#karaoke-canvas-inline{position:absolute;inset:0;width:100%;height:100%;z-index:0}
-.ki-lyrics{max-width:880px;margin:0 auto}
-.ki-mixer-btn{position:absolute;bottom:1rem;right:1rem;z-index:10;width:40px;height:40px;border-radius:50%;background:rgba(20,20,28,.6);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.12);color:var(--text2);display:flex;align-items:center;justify-content:center;font-size:1.1rem;transition:all .2s}
-.ki-mixer-btn:hover,.ki-mixer-btn:active{background:rgba(255,255,255,.12);color:var(--accent)}
-.ki-no-track{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;color:var(--text3);z-index:6}
-.ki-no-track i{font-size:3rem}
-.ki-no-track p{font-size:.9rem}
-
 /* ─── Mixer ───────────────────────────────────────────────── */
 .mixer{position:fixed;bottom:-280px;left:50%;transform:translateX(-50%);width:min(580px,calc(100% - 1.5rem));height:240px;background:rgba(14,14,20,.97);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid var(--border);border-bottom:none;border-radius:16px 16px 0 0;z-index:210;padding:1.2rem 2rem;transition:bottom .35s cubic-bezier(.22,1,.36,1)}
 .mixer.open{bottom:0}
@@ -182,15 +172,9 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 .sl input[type=range]{-webkit-appearance:none;width:80px;height:4px;background:var(--border);border-radius:2px;outline:none;transform:rotate(-90deg);margin:30px 0;cursor:pointer}
 .sl input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 0 8px var(--accent2);cursor:pointer}
 
-/* ─── Desktop enhancements ────────────────────────────────── */
+/* ─── Wide-screen tweaks (keep mobile-first layout) ──────── */
 @media(min-width:769px){
-  .bottom-nav{max-width:480px;margin:0 auto;left:50%;transform:translateX(-50%);border-radius:16px 16px 0 0;border:1px solid var(--border);border-bottom:none}
-  .bnav-tab span{font-size:.68rem}
-  .content{max-width:960px;margin:0 auto;width:100%}
   .albums-grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:20px;padding:1.2rem 1.5rem}
-  .p-main{max-width:960px;margin:0 auto;width:100%}
-  .p-art{width:52px;height:52px}
   .ad-cover{width:160px;height:160px}
   .ad-title{font-size:1.8rem}
-  .track{padding:.6rem 1.2rem}
 }

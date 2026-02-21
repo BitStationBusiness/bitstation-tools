@@ -26,7 +26,6 @@ let vol = 0.7;
 let activeTab = 'biblioteca';
 let albumDetailIdx = -1;
 let karaokeOn = false;
-let karaokeInline = false;
 
 let favorites = {};
 let playCounts = {};
@@ -37,9 +36,6 @@ let savedDirPath = '';
 let gl=null, prog=null, qBuf=null, pLoc=-1;
 const uL={};
 let vizT0=0;
-// WebGL — inline
-let glI=null, progI=null, qBufI=null, pLocI=-1;
-const uLI={};
 
 const $=id=>document.getElementById(id);
 
@@ -140,6 +136,7 @@ async function pickDirectory(){
 async function loadFromDirectory(paths){
   if(!paths||!paths.length) return;
   showLoading('Cargando albumes...');
+  let loaded=0;
   for(const p of paths){
     try{
       const inShell = typeof ToolBridge!=='undefined' && ToolBridge.isShellMode();
@@ -149,10 +146,11 @@ async function loadFromDirectory(paths){
         const resp = await fetch(urlRes.url);
         const ab = await resp.arrayBuffer();
         const album = await parseBm(ab, p.split(/[/\\]/).pop());
-        if(album && !library.some(a=>a.fileName===album.fileName)) library.push(album);
+        if(album && !library.some(a=>a.fileName===album.fileName)){library.push(album);loaded++}
       }
     }catch(e){console.warn('Load error:',p,e)}
   }
+  if(loaded>0) dbPut('bm-file-paths',paths).catch(()=>{});
   onLibraryChanged();
 }
 
@@ -160,12 +158,18 @@ async function reloadSavedDirectory(){
   if(!savedDirPath) return;
   const inShell = typeof ToolBridge!=='undefined' && ToolBridge.isShellMode();
   if(!inShell) return;
+  showLoading('Cargando albumes...');
   try{
     const res = await ToolBridge.pickFiles({extensions:['bm'],multiple:true,initialDir:savedDirPath,autoSelect:true});
     const paths = res.files || res.paths || [];
-    if(paths.length) await loadFromDirectory(paths);
-    else renderTab();
-  }catch(e){renderTab()}
+    if(paths.length){await loadFromDirectory(paths);return}
+  }catch(e){console.warn('Dir scan failed:',e)}
+  // Fallback: try cached file paths
+  try{
+    const cached = await dbGet('bm-file-paths');
+    if(cached && cached.length){await loadFromDirectory(cached);return}
+  }catch(e){}
+  renderTab();
 }
 
 async function handleFileInput(e){
@@ -214,24 +218,15 @@ function showLoading(msg){
 
 // ═══ Tab Rendering ════════════════════════════════════════════
 function switchTab(tab){
+  if(tab==='karaoke'){
+    toggleKaraoke(true);
+    return;
+  }
   activeTab=tab;
   albumDetailIdx=-1;
   document.querySelectorAll('.bnav-tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===tab));
-
-  const ki=$('karaoke-inline');
-  if(tab==='karaoke'){
-    $('content').style.display='none';
-    ki.style.display='block';
-    karaokeInline=true;
-    resizeInlineCanvas();
-    if(!isPlaying) $('ki-no-track').style.display='flex';
-    else $('ki-no-track').style.display='none';
-  }else{
-    $('content').style.display='';
-    ki.style.display='none';
-    karaokeInline=false;
-    renderTab();
-  }
+  $('content').style.display='';
+  renderTab();
 }
 
 function renderTab(){
@@ -475,8 +470,6 @@ async function playTrack(ai,ti,auto=true){
   playCounts[key]=(playCounts[key]||0)+1;
   savePlayCounts();
 
-  if(karaokeInline) $('ki-no-track').style.display='none';
-
   await initAudio();
   lyrics=[]; lastLyIdx=-2;
   if(track.lrc_path){const lf=album.zipRef.file(track.lrc_path);if(lf) parseLrc(await lf.async('string'))}
@@ -526,7 +519,7 @@ function setPlayIcon(p){const i=$('btn-play')?.querySelector('i');if(i)i.classNa
 function highlightPlaying(){document.querySelectorAll('.track').forEach(el=>{el.classList.toggle('playing',+el.dataset.ai===curAlbumIdx&&+el.dataset.ti===curTrackIdx&&isPlaying)})}
 
 // ═══ Update Loop ══════════════════════════════════════════════
-function updateLoop(){if(!isPlaying)return;const p=startOff+(ctx.currentTime-startT);if(p>=dur&&dur>0){advance();return}updateUI(p);drawViz();drawVizInline();animId=requestAnimationFrame(updateLoop)}
+function updateLoop(){if(!isPlaying)return;const p=startOff+(ctx.currentTime-startT);if(p>=dur&&dur>0){advance();return}updateUI(p);drawViz();animId=requestAnimationFrame(updateLoop)}
 function updateUI(p){
   $('p-progress-fill').style.width=`${dur>0?(p/dur)*100:0}%`;
   if(lyrics.length){
@@ -546,12 +539,6 @@ function updateLyrics(idx){
   if(lP)lP.textContent=p;
   if(lC){lC.textContent=cu;if(lastLyIdx>=0&&idx>lastLyIdx){lC.classList.add('pop');setTimeout(()=>lC.classList.remove('pop'),300)}}
   if(lN)lN.textContent=n; if(lN2)lN2.textContent=n2;
-
-  // Inline lyrics
-  const lPi=$('ly-prev-i'),lCi=$('ly-cur-i'),lNi=$('ly-next-i'),lN2i=$('ly-next2-i');
-  if(lPi)lPi.textContent=p;
-  if(lCi){lCi.textContent=cu;if(lastLyIdx>=0&&idx>lastLyIdx){lCi.classList.add('pop');setTimeout(()=>lCi.classList.remove('pop'),300)}}
-  if(lNi)lNi.textContent=n; if(lN2i)lN2i.textContent=n2;
 
   lastLyIdx=idx;
 }
@@ -608,11 +595,10 @@ function setup(){
     pb.addEventListener('touchstart',e=>doSeek(e.touches[0].clientX),{passive:true});
   }
 
-  // Karaoke overlay (from player bar button)
+  // Karaoke overlay
   $('btn-karaoke')?.addEventListener('click',()=>toggleKaraoke(true));
   $('btn-exit-k')?.addEventListener('click',()=>toggleKaraoke(false));
   $('btn-mixer-k')?.addEventListener('click',()=>$('mixer')?.classList.toggle('open'));
-  $('btn-mixer-inline')?.addEventListener('click',()=>$('mixer')?.classList.toggle('open'));
   $('btn-close-mixer')?.addEventListener('click',()=>$('mixer')?.classList.remove('open'));
 
   // Mixer sliders
@@ -636,7 +622,7 @@ function setup(){
     }
   });
 
-  window.addEventListener('resize',()=>{resizeCanvas();resizeInlineCanvas()});
+  window.addEventListener('resize',()=>{resizeCanvas()});
 }
 
 // ═══ WebGL Visualizer ═════════════════════════════════════════
@@ -680,34 +666,12 @@ function initGL(){
 }
 
 // Inline GL
-function initGLInline(){
-  const cv=$('karaoke-canvas-inline');if(!cv)return;
-  glI=cv.getContext('webgl2')||cv.getContext('webgl');if(!glI)return;
-  const vs=compSh(glI,glI.VERTEX_SHADER,VS),fs=compSh(glI,glI.FRAGMENT_SHADER,FS);if(!vs||!fs)return;
-  progI=glI.createProgram();glI.attachShader(progI,vs);glI.attachShader(progI,fs);glI.linkProgram(progI);
-  if(!glI.getProgramParameter(progI,glI.LINK_STATUS)){console.error(glI.getProgramInfoLog(progI));return}
-  qBufI=glI.createBuffer();glI.bindBuffer(glI.ARRAY_BUFFER,qBufI);glI.bufferData(glI.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),glI.STATIC_DRAW);
-  pLocI=glI.getAttribLocation(progI,'a_position');
-  ['u_time','u_res','u_mi','u_d','u_b','u_o','u_v','u_dp','u_bp'].forEach(u=>uLI[u]=glI.getUniformLocation(progI,u));
-}
-
 function resizeCanvas(){
   const cv=$('karaoke-canvas');if(!cv||!gl)return;
   const dpr=window.devicePixelRatio||1;
   cv.style.width=window.innerWidth+'px';cv.style.height=window.innerHeight+'px';
   cv.width=Math.round(window.innerWidth*dpr*.5);cv.height=Math.round(window.innerHeight*dpr*.5);
   gl.viewport(0,0,cv.width,cv.height);
-}
-
-function resizeInlineCanvas(){
-  const cv=$('karaoke-canvas-inline');if(!cv)return;
-  if(!glI){initGLInline();if(!glI)return;}
-  const container=$('karaoke-inline');if(!container)return;
-  const dpr=window.devicePixelRatio||1;
-  const w=container.clientWidth, h=container.clientHeight;
-  cv.style.width=w+'px';cv.style.height=h+'px';
-  cv.width=Math.round(w*dpr*.5);cv.height=Math.round(h*dpr*.5);
-  glI.viewport(0,0,cv.width,cv.height);
 }
 
 function drawViz(){
@@ -726,22 +690,6 @@ function drawViz(){
   gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
 }
 
-function drawVizInline(){
-  if(!karaokeInline||!glI||!progI)return;
-  if(!vizT0)vizT0=performance.now();
-  const t=(performance.now()-vizT0)/1000;
-  glI.useProgram(progI);glI.uniform1f(uLI.u_time,t);glI.uniform2f(uLI.u_res,$('karaoke-canvas-inline').width,$('karaoke-canvas-inline').height);
-  const f=STEMS.map(s=>getFeatures(s));
-  glI.uniform1f(uLI.u_mi,(f[0].rms+f[1].rms+f[2].rms+f[3].rms)/4);
-  glI.uniform4f(uLI.u_d,f[0].rms,f[0].low,f[0].mid,f[0].high);
-  glI.uniform4f(uLI.u_b,f[1].rms,f[1].low,f[1].mid,f[1].high);
-  glI.uniform4f(uLI.u_o,f[2].rms,f[2].low,f[2].mid,f[2].high);
-  glI.uniform4f(uLI.u_v,f[3].rms,f[3].low,f[3].mid,f[3].high);
-  glI.uniform1f(uLI.u_dp,f[0].peak?f[0].peakValue:0);glI.uniform1f(uLI.u_bp,f[1].peak?f[1].peakValue:0);
-  glI.bindBuffer(glI.ARRAY_BUFFER,qBufI);glI.enableVertexAttribArray(pLocI);glI.vertexAttribPointer(pLocI,2,glI.FLOAT,false,0,0);
-  glI.drawArrays(glI.TRIANGLE_STRIP,0,4);
-}
-
 // ═══ Init ═════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded',async()=>{
   try{if(typeof ToolBridge!=='undefined')await ToolBridge.handshake()}catch(e){}
@@ -749,7 +697,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   setup();
   setupMediaSession();
   initGL();
-  initGLInline();
   resizeCanvas();
   renderTab();
+  if(savedDirPath) reloadSavedDirectory();
 });
