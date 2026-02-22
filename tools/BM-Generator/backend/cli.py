@@ -5,6 +5,7 @@ import os
 import sys
 import traceback
 from pathlib import Path
+from typing import Optional
 
 sys.path.append(str(Path(__file__).parent))
 
@@ -40,8 +41,27 @@ def _write_result(output_path: Path, result: dict):
         json.dump(result, f, indent=2, ensure_ascii=False)
 
 
+def _resolve_path(fp: str, base: Optional[Path]) -> Path:
+    """Return an absolute Path for fp.
+
+    Resolution order:
+    1. If fp is already absolute, use it as-is.
+    2. If a base directory is provided, resolve fp relative to it.
+    3. Fall back to the process cwd (original behaviour).
+    """
+    p = Path(fp)
+    if p.is_absolute():
+        return p
+    if base is not None:
+        return base / p
+    return p
+
+
 def handle_analyze(data: dict) -> dict:
     from core.metadata_handler import extract_metadata
+
+    base_str = data.get("base_path") or data.get("_base_path")
+    base: Optional[Path] = Path(base_str) if base_str else None
 
     files = data.get("files") or data.get("tracks") or []
     analyzed = []
@@ -49,7 +69,7 @@ def handle_analyze(data: dict) -> dict:
 
     for item in files:
         fp = item if isinstance(item, str) else item.get("file", "")
-        p = Path(fp)
+        p = _resolve_path(fp, base)
         if not p.exists():
             errors.append(f"File not found: {fp}")
             continue
@@ -68,6 +88,9 @@ def handle_analyze(data: dict) -> dict:
 def handle_demucs_split(data: dict) -> dict:
     from core.demucs_handler import separate_track, check_cuda_availability, DEMUCS_MODEL
 
+    base_str = data.get("base_path") or data.get("_base_path")
+    base: Optional[Path] = Path(base_str) if base_str else None
+
     tracks = data.get("tracks") or []
     output_dir = data.get("output_dir")
     if not output_dir:
@@ -84,7 +107,7 @@ def handle_demucs_split(data: dict) -> dict:
 
     for t in tracks:
         fp = t if isinstance(t, str) else t.get("file", "")
-        p = Path(fp)
+        p = _resolve_path(fp, base)
         track_info = {"input": str(p), "status": "error", "error": None, "stems": {}, "stems_dir": ""}
 
         if not p.exists():
@@ -152,13 +175,31 @@ def _get_platform_output_dir(tool_id: str = "bm-generator") -> Path:
     return base
 
 
+def _resolve_album_paths(album_raw: dict, base: Optional[Path]) -> None:
+    """Resolve relative file paths inside album_data in-place."""
+    if base is None:
+        return
+    if album_raw.get("cover_image_path"):
+        album_raw["cover_image_path"] = str(_resolve_path(album_raw["cover_image_path"], base))
+    for song in album_raw.get("songs", []):
+        if song.get("path"):
+            song["path"] = str(_resolve_path(song["path"], base))
+        if song.get("lrc_file"):
+            song["lrc_file"] = str(_resolve_path(song["lrc_file"], base))
+
+
 def handle_build_bm(data: dict) -> dict:
     from core.metadata_handler import AlbumMetadata
     from core.builder import BMBuilder
 
+    base_str = data.get("base_path") or data.get("_base_path")
+    base: Optional[Path] = Path(base_str) if base_str else None
+
     album_raw = data.get("album_data")
     if not album_raw:
         return {"ok": False, "action": "build_bm", "errors": ["album_data is required"]}
+
+    _resolve_album_paths(album_raw, base)
 
     output_dir = data.get("output_dir")
     export_bm_path = data.get("export_bm_path")
@@ -291,6 +332,11 @@ def main():
     except Exception as e:
         _write_result(output_path, {"ok": False, "error": f"Invalid JSON: {e}"})
         sys.exit(1)
+
+    # Inject the JSON file's directory as implicit base for resolving relative paths.
+    # Explicit "base_path" in the JSON takes precedence.
+    if "_base_path" not in data and "base_path" not in data:
+        data["_base_path"] = str(input_path.resolve().parent)
 
     action = data.get("action")
     logger.info(f"Action: {action}")
