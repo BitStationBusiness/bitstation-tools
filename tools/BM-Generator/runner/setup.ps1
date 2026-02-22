@@ -151,12 +151,16 @@ else {
     }
 
     # Install PyTorch; torchaudio<2.9 to avoid torchcodec requirement (stem separation uses soundfile)
+    $torchIndex = ""
     if ($hasNvidia) {
+        $torchIndex = "--extra-index-url https://download.pytorch.org/whl/cu121"
         Write-Host "Installing PyTorch with CUDA..." -ForegroundColor Cyan
-        & "$VenvPip" install torch "torchaudio>=2.0,<2.9" --extra-index-url https://download.pytorch.org/whl/cu121 --quiet 2>$null
+        $torchArgs = @("install", "torch", "torchaudio>=2.0,<2.9", "--extra-index-url", "https://download.pytorch.org/whl/cu121", "--quiet")
+        & "$VenvPip" @torchArgs 2>$null
         if ($LASTEXITCODE -ne 0) {
             Write-Host "CUDA torch failed, falling back to CPU..." -ForegroundColor Yellow
             & "$VenvPip" install torch "torchaudio>=2.0,<2.9" --quiet
+            $torchIndex = ""
         }
     }
     else {
@@ -164,21 +168,30 @@ else {
         & "$VenvPip" install torch "torchaudio>=2.0,<2.9" --quiet
     }
 
-    # Install demucs
+    # Install demucs with --no-deps first, then its non-torch deps separately.
+    # This prevents pip from resolving torch/torchaudio from PyPI (CPU versions).
     Write-Host "Installing demucs..." -ForegroundColor Cyan
-    & "$VenvPip" install demucs --quiet
+    & "$VenvPip" install demucs --no-deps --quiet
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Retrying demucs install..." -ForegroundColor Yellow
-        & "$VenvPip" install demucs
+        & "$VenvPip" install demucs --no-deps
     }
+    & "$VenvPip" install dora-search einops "julius>=0.2.3" "lameenc>=1.2" openunmix pyyaml tqdm --quiet
 
     # Re-enforce numpy <2 (demucs may have upgraded it)
     Write-Host "Enforcing numpy <2.0 compatibility..." -ForegroundColor Cyan
     & "$VenvPip" install "numpy>=1.24,<2.0" --quiet
 
-    # Install remaining from requirements.txt
+    # Install remaining from requirements.txt (excluding torch packages handled above)
     Write-Host "Installing requirements.txt..." -ForegroundColor Cyan
     & "$VenvPip" install -r "$RequirementsFile" --quiet
+
+    # Re-enforce CUDA torch after all installations to ensure nothing overwrote it
+    if ($hasNvidia -and $torchIndex -ne "") {
+        Write-Host "Re-enforcing PyTorch CUDA..." -ForegroundColor Cyan
+        $torchArgs = @("install", "torch", "torchaudio>=2.0,<2.9", "--extra-index-url", "https://download.pytorch.org/whl/cu121", "--force-reinstall", "--no-deps", "--quiet")
+        & "$VenvPip" @torchArgs 2>$null
+    }
 }
 
 # --- Set up torch cache for offline model loading ---
@@ -218,8 +231,12 @@ for mod in ['pydantic', 'mutagen', 'pydub', 'soundfile']:
         print(f'  {mod}: FAILED')
 try:
     import torch
-    cuda = 'CUDA' if torch.cuda.is_available() else 'CPU'
-    print(f'  torch: OK ({cuda})')
+    cuda_ok = torch.cuda.is_available()
+    if cuda_ok:
+        gpu_name = torch.cuda.get_device_name(0)
+        print(f'  torch: OK (CUDA - {gpu_name}, torch {torch.__version__})')
+    else:
+        print(f'  torch: OK (CPU only, torch {torch.__version__})')
 except ImportError:
     errors.append('torch: FAILED')
     print('  torch: FAILED')

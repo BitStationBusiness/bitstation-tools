@@ -18,11 +18,33 @@ _cached_model: Any = None
 def check_cuda_availability() -> tuple:
     try:
         import torch
-        if torch.cuda.is_available() and torch.cuda.device_count() > 0:
-            return True, torch.cuda.get_device_name(0)
+        cuda_available = torch.cuda.is_available()
+        device_count = torch.cuda.device_count() if cuda_available else 0
+        if cuda_available and device_count > 0:
+            name = torch.cuda.get_device_name(0)
+            logger.info(f"[CUDA] Available: GPU={name}, devices={device_count}")
+            return True, name
+        logger.info(f"[CUDA] Not available (is_available={cuda_available}, devices={device_count}, torch={torch.__version__})")
         return False, None
     except ImportError:
+        logger.info("[CUDA] torch not installed")
         return False, None
+
+
+def _ensure_model_device(model, device: str):
+    """Move the model to the requested device if needed."""
+    import torch
+    current = next(model.parameters()).device
+    want_cuda = device == "cuda" and torch.cuda.is_available()
+
+    if want_cuda and current.type != "cuda":
+        model = model.cuda()
+        logger.info(f"[DEMUCS] Model moved to GPU: {torch.cuda.get_device_name(0)}")
+    elif not want_cuda and current.type == "cuda":
+        model = model.cpu()
+        logger.info("[DEMUCS] Model moved to CPU")
+
+    return model
 
 
 def preload_model(device: str = "auto"):
@@ -30,15 +52,14 @@ def preload_model(device: str = "auto"):
     global _cached_model
     try:
         import torch
+        logger.info(f"[DEMUCS] torch={torch.__version__}, cuda={torch.cuda.is_available()}")
         from demucs.pretrained import get_model
         _cached_model = get_model(DEMUCS_MODEL)
         if device == "auto":
             device = "cuda" if torch.cuda.is_available() else "cpu"
-        if device == "cuda":
-            _cached_model = _cached_model.cuda()
-            logger.info(f"[DEMUCS] Model loaded on GPU: {torch.cuda.get_device_name(0)}")
-        else:
-            logger.info("[DEMUCS] Model loaded on CPU")
+        _cached_model = _ensure_model_device(_cached_model, device)
+        actual = next(_cached_model.parameters()).device
+        logger.info(f"[DEMUCS] Model preloaded on {actual}")
     except Exception as e:
         _cached_model = None
         logger.warning(f"[DEMUCS] Model preload failed: {e}")
@@ -125,11 +146,11 @@ def run_demucs_inprocess(
 
     if _cached_model is None:
         _cached_model = get_model(DEMUCS_MODEL)
-        if device == "cuda" and torch.cuda.is_available():
-            _cached_model = _cached_model.cuda()
 
+    _cached_model = _ensure_model_device(_cached_model, device)
     model = _cached_model
     model_device = next(model.parameters()).device
+    logger.info(f"[DEMUCS] Inference device: {model_device}")
 
     wav, sr = _load_audio(input_path, target_sr=model.samplerate)
 
